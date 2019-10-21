@@ -1,0 +1,12 @@
+
+module NeexTrx
+{
+
+interface FreezingSys
+{
+    bool user_into_dc2(string addr,string symbol,string hash,string amount,int type);
+    bool commit_withdraw_dc(string hash,string symbol,string amount,string minerCost,out string rsp);
+    bool insert_innerexchange_fee(string hash,string minerCost,out string rsp);
+}; 
+
+};
