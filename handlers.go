@@ -72,7 +72,7 @@ func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 			RespondWithError(w, 400, "Missing to field")
 			return
 		} else {
-			_, ok := addrs[to]
+			_, ok := addrs.Load(to)
 			if ok {
 				log.Println("to address is in our wallet")
 				RespondWithError(w, 500, "Couldn't launch transfering within the same wallet")
@@ -87,13 +87,13 @@ func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 		}
 
 		if !isWithdraw {
-			v, ok := addrs[from]
+			v, ok := addrs.Load(from)
 			if !ok {
 				log.Println("from address is not in our wallet")
 				RespondWithError(w, 400, "Invalid from address")
 				return
 			}
-			index = int(v)
+			index = int(v.(uint32))
 		}
 		log.Println("send eth from", from, "to", to)
 
@@ -125,7 +125,7 @@ func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 			return
 		}
 		*/
-log.Println(private)
+		log.Println(private)
 		tx := "demo"
 		Respond(w, 200, map[string]string{"txhash": tx})
 	}
@@ -142,7 +142,7 @@ func GetAddrHandler(config *Config) func(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		log.Println("send addr:", addr)
-		addrs[addr] = uint32(config.Index)
+		addrs.Store(addr, uint32(config.Index))
 		config.Index++
 		//Respond(w, 200, map[string]string{"address": addr})
 		Respond(w, 200, addr)

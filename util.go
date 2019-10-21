@@ -10,12 +10,12 @@ import (
 	"golang.org/x/crypto/ripemd160"
 	"log"
 	"strings"
+	"sync"
 )
 
-var addrs map[string]uint32
+var addrs sync.Map
 
 func AddressInit(xpub string, accountId int, total int, forTest int) {
-	addrs = make(map[string]uint32, 1024)
 	masterKey, err := hdkeychain.NewKeyFromString(xpub)
 	if err != nil {
 		log.Println(err)
@@ -37,7 +37,7 @@ func AddressInit(xpub string, accountId int, total int, forTest int) {
 
 		pubkey, _ := acctExt.ECPubKey()
 		addr := getAddrByPubKey(pubkey.SerializeCompressed(), forTest)
-		addrs[addr] = uint32(i)
+		addrs.Store(addr, uint32(i))
 	}
 }
 
@@ -105,7 +105,7 @@ func getNewAddrByBranch(config *Config, branch, index uint32) (addr string, err 
 
 	pubkey, _ := acctExt.ECPubKey()
 	addr = getAddrByPubKey(pubkey.SerializeCompressed(), config.TestNet)
-	addrs[addr] = index
+	addrs.Store(addr, index)
 	return
 }
 

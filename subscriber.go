@@ -89,10 +89,10 @@ func Listener(config *Config, ch <-chan ObjMessage, notifyChannel chan<- NotifyM
 
 			stop := new(big.Int)
 			stop.Sub(message.Number, big.NewInt(3))
-			log.Println("handling from ", last, "~", stop, message.Number)
+			log.Println("handling from ", last, "~", stop)
 			for 0 != last.Cmp(stop) {
 				log.Printf("Recovery: Doing block %s", last.Text(10))
-				txns, err := ReadBlock(client, message.Hash)
+				txns, err := ReadBlock(client, last)
 				if err != nil {
 					log.Println("Listener:", err)
 					continue
@@ -119,13 +119,10 @@ func Listener(config *Config, ch <-chan ObjMessage, notifyChannel chan<- NotifyM
 
 func Notifier(config *Config, ch <-chan NotifyMessage) {
 	var (
-		symbol   string
-		from     string
-		to       string
-		findFrom int
-		findTo   int
-		amount   string
-		fee      string
+		symbol string
+		addr   string
+		amount string
+		fee    string
 	)
 
 	for message := range ch {
@@ -139,33 +136,10 @@ func Notifier(config *Config, ch <-chan NotifyMessage) {
 		}
 
 		amountString := message.Amount.Text(10)
-		from = message.AddressFrom
-		to = message.AddressTo
+		addr = message.Address
 		symbol = message.Coin
 		amount = LeftShift(amountString, 8)
 		fee = LeftShift(message.Fee.String(), 8)
-
-		//log.Printf("%s from: %s, to: %s, amount: %s, hash:%s\n", symbol, from, to, amount, message.TxHash)
-		_, ok := addrs[from]
-		if ok {
-			findFrom = 1
-		} else {
-			findFrom = 0
-		}
-		_, ok = addrs[to]
-		if ok {
-			findTo = 1
-		} else {
-			findTo = 0
-		}
-
-		if findTo == 0 && findFrom == 0 {
-			continue
-		}
-		if findTo == 1 && findFrom == 1 {
-			log.Printf("token transfer within the same wallet (%s: %s -> %s)\n", symbol, from, to)
-			continue
-		}
 
 		if symbol == "USDT" {
 			status, err := GetOmniTxStatus(config, message.TxHash)
@@ -179,12 +153,13 @@ func Notifier(config *Config, ch <-chan NotifyMessage) {
 			}
 		}
 
-		if findTo == 1 && findFrom == 0 {
-			log.Printf("%s %s tokens deposit to the wallet, %s -> %s, tx: %s\n", symbol, amount, from, to, message.TxHash)
-			storeTokenDepositTx(symbol, message.TxHash, to, amount)
-		} else if findTo == 0 && findFrom == 1 {
-			log.Printf("%s %s tokens withdraw from the wallet, %s -> %s, tx: %s fee: %s\n", symbol, amount, from, to, message.TxHash, fee)
-			storeTokenWithdrawTx(symbol, message.TxHash, to, amount, fee)
+		switch message.TxType {
+		case 0:
+			log.Printf("%s %s tokens deposit to %s, tx: %s\n", symbol, amount, addr, message.TxHash)
+			storeTokenDepositTx(symbol, message.TxHash, addr, amount)
+		case 1:
+			log.Printf("%s %s tokens withdraw to %s, tx: %s fee: %s\n", symbol, amount, addr, message.TxHash, fee)
+			storeTokenWithdrawTx(symbol, message.TxHash, addr, amount, fee)
 		}
 	}
 }

@@ -22,8 +22,7 @@ const (
 
 type NotifyMessage struct {
 	MessageType int
-	AddressFrom string
-	AddressTo   string
+	Address     string
 	Amount      *big.Int
 	TxHash      string
 	Fee         *big.Int

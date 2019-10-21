@@ -18,7 +18,7 @@ type Config struct {
 	Index     uint32
 
 	LastBlock    uint64
-	GasPrice     int64
+	FeeRate int64
 	RegistryAddr string
 }
 
@@ -45,7 +45,7 @@ func LoadConfiguration(filepath string) (*Config, error) {
 	config.Index = uint32(cfg.Section("account").Key("index").MustInt(0))
 
 	config.LastBlock = uint64(cfg.Section("extapi").Key("lastBlock").MustInt(0))
-	config.GasPrice = int64(cfg.Section("extapi").Key("gasPrice").MustInt(0))
+	config.FeeRate = int64(cfg.Section("extapi").Key("feerate").MustInt(0))
 	config.RegistryAddr = cfg.Section("extapi").Key("registry").String()
 	return config, nil
 }
