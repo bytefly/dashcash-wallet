@@ -16,6 +16,7 @@ type Config struct {
 	Xpriv     string
 	AccountId int
 	Index     uint32
+	InIndex   uint32
 
 	LastBlock    uint64
 	FeeRate      int64
@@ -43,6 +44,7 @@ func LoadConfiguration(filepath string) (*Config, error) {
 	config.Xpriv = cfg.Section("account").Key("xpriv").String()
 	config.AccountId = cfg.Section("account").Key("id").MustInt(0)
 	config.Index = uint32(cfg.Section("account").Key("index").MustInt(0))
+	config.InIndex = uint32(cfg.Section("account").Key("change_index").MustInt(0))
 
 	config.LastBlock = uint64(cfg.Section("extapi").Key("lastBlock").MustInt(0))
 	config.FeeRate = int64(cfg.Section("extapi").Key("feerate").MustInt(0))

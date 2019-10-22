@@ -58,8 +58,8 @@ func main() {
 
 	last_id = config.LastBlock
 
-	AddressInit(config.Xpub, config.AccountId, int(config.Index), config.TestNet)
-	log.Println(config.Index, " address init ok")
+	AddressInit(config.Xpub, 0, int(config.Index), config.TestNet)
+	AddressInit(config.Xpub, 1, int(config.InIndex), config.TestNet)
 
 	err = openDb()
 	if err != nil {

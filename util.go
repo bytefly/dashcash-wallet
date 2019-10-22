@@ -3,6 +3,8 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
+	"github.com/btcsuite/btcd/btcec"
 	"github.com/btcsuite/btcutil"
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/btcsuite/btcutil/hdkeychain"
@@ -14,14 +16,14 @@ import (
 
 var addrs sync.Map
 
-func AddressInit(xpub string, accountId int, total int, forTest int) {
+func AddressInit(xpub string, branch uint32, total int, forTest int) {
 	masterKey, err := hdkeychain.NewKeyFromString(xpub)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
-	acct, err := masterKey.Child(0)
+	acct, err := masterKey.Child(branch)
 	if err != nil {
 		log.Println(err)
 		return
@@ -36,7 +38,7 @@ func AddressInit(xpub string, accountId int, total int, forTest int) {
 
 		pubkey, _ := acctExt.ECPubKey()
 		addr := getAddrByPubKey(pubkey.SerializeCompressed(), forTest)
-		addrs.Store(addr, uint32(i))
+		addrs.Store(addr, fmt.Sprintf("%d/%d", branch, i))
 	}
 }
 
@@ -104,11 +106,11 @@ func getNewAddrByBranch(config *Config, branch, index uint32) (addr string, err 
 
 	pubkey, _ := acctExt.ECPubKey()
 	addr = getAddrByPubKey(pubkey.SerializeCompressed(), config.TestNet)
-	addrs.Store(addr, index)
+	addrs.Store(addr, fmt.Sprintf("%d/%d", branch, index))
 	return
 }
 
-func GetPrivateKey(xpriv string, branch int, index int) (privKey string, err error) {
+func GetPrivateKey(xpriv string, branch int, index int) (privKey *btcec.PrivateKey, err error) {
 	masterKey, err := hdkeychain.NewKeyFromString(xpriv)
 	if err != nil {
 		log.Println(err)
@@ -127,10 +129,7 @@ func GetPrivateKey(xpriv string, branch int, index int) (privKey string, err err
 		return
 	}
 
-	privKeyEC, err := acctExt.ECPrivKey()
-	if err == nil {
-		privKey = hex.EncodeToString(privKeyEC.ToECDSA().D.Bytes())
-	}
+	privKey, err = acctExt.ECPrivKey()
 	return
 }
 

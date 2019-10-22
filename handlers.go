@@ -40,9 +40,6 @@ func NotFoundHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request) {
-	isWithdraw := false
-	branch := 0
-	var index int
 	return func(w http.ResponseWriter, r *http.Request) {
 		err := r.ParseForm()
 		if err != nil {
@@ -51,21 +48,8 @@ func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 			return
 		}
 
-		from := r.Form.Get("from")
 		to := r.Form.Get("to")
 		amount := r.Form.Get("amount")
-
-		if from == "" {
-			from, err = getNewAddrByBranch(config, 1, 0)
-			if err != nil {
-				log.Println("create from address error: ", err)
-				RespondWithError(w, 500, "Couldn't get from address")
-				return
-			}
-			isWithdraw = true
-			branch = 1
-			index = 0
-		}
 
 		if to == "" {
 			log.Println("Got Send btc order but to field is missing")
@@ -80,33 +64,17 @@ func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 			}
 		}
 
-		if !VerifyAddress(from) || !VerifyAddress(to) {
-			log.Println("Invalid from/to address:", from, to)
-			RespondWithError(w, 400, "Invalid from/to address")
+		if !VerifyAddress(to) {
+			log.Println("Invalid to address:", to)
+			RespondWithError(w, 400, "Invalid to address")
 			return
 		}
 
-		if !isWithdraw {
-			v, ok := addrs.Load(from)
-			if !ok {
-				log.Println("from address is not in our wallet")
-				RespondWithError(w, 400, "Invalid from address")
-				return
-			}
-			index = int(v.(uint32))
-		}
-		log.Println("send eth from", from, "to", to)
-
-		private, err := GetPrivateKey(config.Xpriv, branch, index)
-		if err != nil {
-			log.Println("get private key fail")
-			RespondWithError(w, 500, "get pirvate key fail")
-			return
-		}
+		log.Println("send coin to", to, "amount:", amount)
 
 		if amount == "" {
-			log.Println("Got Send Ethereum order but 'amount' field is missing")
-			RespondWithError(w, 400, "Missing 'amount' field")
+			log.Println("amount is missing")
+			RespondWithError(w, 400, "Missing amount field")
 			return
 		}
 
@@ -125,7 +93,6 @@ func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 			return
 		}
 		*/
-		log.Println(private)
 		tx := "demo"
 		Respond(w, 200, map[string]string{"txhash": tx})
 	}

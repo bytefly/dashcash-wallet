@@ -183,3 +183,13 @@ func ReadBlock(client *rpcclient.Client, block *big.Int) ([]NotifyMessage, error
 
 	return messages, nil
 }
+
+func SendTransaction(client *rpcclient.Client, tx *wire.MsgTx) (string, error) {
+	hexHash, err := client.SendRawTransaction(tx, false)
+	if err != nil {
+		return "Send raw transaction error", err
+	}
+
+	hash := hexHash.String()
+	return hash, nil
+}
