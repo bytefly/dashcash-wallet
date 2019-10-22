@@ -18,7 +18,7 @@ type Config struct {
 	Index     uint32
 
 	LastBlock    uint64
-	FeeRate int64
+	FeeRate      int64
 	RegistryAddr string
 }
 

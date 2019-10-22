@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	badger "github.com/dgraph-io/badger"
 )
@@ -13,7 +12,6 @@ func openDb() error {
 	var err error
 	db, err = badger.Open(badger.DefaultOptions("/tmp/badger"))
 	if err != nil {
-		log.Println(err)
 		return err
 	}
 	return nil

@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil"
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/btcsuite/btcutil/hdkeychain"
@@ -216,14 +215,13 @@ func RightShift(str string, size int) string {
 }
 
 func VerifyAddress(address string) bool {
-	//FIXME: for dashcash
-	addr, err := btcutil.DecodeAddress(address, &chaincfg.MainNetParams)
+	addr, err := btcutil.DecodeAddress(address, &DSCMainNetParams)
 	if err != nil {
 		log.Println("Invalid address:", addr)
 		return false
 	}
 
-	if false == addr.IsForNet(&chaincfg.MainNetParams) {
+	if false == addr.IsForNet(&DSCMainNetParams) {
 		log.Println("address not from mainnet")
 		return false
 	}

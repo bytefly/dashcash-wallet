@@ -52,13 +52,20 @@ func main() {
 
 	config, err := LoadConfiguration(fConfigFile)
 	if err != nil {
-		panic(err)
+		log.Println("load cfg err:", err)
+		return
 	}
 
 	last_id = config.LastBlock
 
 	AddressInit(config.Xpub, config.AccountId, int(config.Index), config.TestNet)
 	log.Println(config.Index, " address init ok")
+
+	err = openDb()
+	if err != nil {
+		log.Println("open db err:", err)
+		return
+	}
 
 	r := mux.NewRouter()
 	r.HandleFunc("/getAddress", GetAddrHandler(config))
@@ -104,6 +111,7 @@ func main() {
 		}
 	}
 	server.Close()
+	closeDb()
 	SaveConfiguration(config, fConfigFile)
 	log.Println("bye")
 }

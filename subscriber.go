@@ -95,7 +95,7 @@ func Listener(config *Config, ch <-chan ObjMessage, notifyChannel chan<- NotifyM
 				txns, err := ReadBlock(client, last)
 				if err != nil {
 					log.Println("Listener:", err)
-					continue
+					break
 				}
 
 				for _, txn := range txns {

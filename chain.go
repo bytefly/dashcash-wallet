@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
@@ -84,7 +83,8 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, isPending boo
 			log.Println("parse pkscript err:", err)
 			continue
 		}
-		addr, err := pkScript.Address(&chaincfg.MainNetParams)
+		//addr, err := pkScript.Address(&chaincfg.MainNetParams)
+		addr, err := pkScript.Address(&DSCMainNetParams)
 		if err != nil {
 			log.Println("get addr err:", err)
 			continue
@@ -95,6 +95,7 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, isPending boo
 			removeUtxo(prevHash.String(), prevIndex, addrStr, value)
 			inputAddrs = append(inputAddrs, addrStr)
 		}
+		log.Println("input:", addrStr)
 	}
 
 	for i := 0; i < len(msgtx.TxOut); i++ {
@@ -105,7 +106,8 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, isPending boo
 			log.Println("parse pkscript err:", err)
 			continue
 		}
-		addr, err := pkScript.Address(&chaincfg.MainNetParams)
+		//addr, err := pkScript.Address(&chaincfg.MainNetParams)
+		addr, err := pkScript.Address(&DSCMainNetParams)
 		if err != nil {
 			log.Println("get addr err:", err)
 			continue
@@ -119,6 +121,7 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, isPending boo
 			outputAddrs2 = append(outputAddrs2, addrStr)
 		}
 
+		log.Println("output:", addrStr)
 		outputValue[addrStr] = msgtx.TxOut[i].Value
 	}
 
@@ -166,7 +169,11 @@ func ReadBlock(client *rpcclient.Client, block *big.Int) ([]NotifyMessage, error
 		return messages, fmt.Errorf("get block err: %v", err)
 	}
 
-	for _, tx := range blockInfo.Transactions {
+	for i, tx := range blockInfo.Transactions {
+		//ignore coin base
+		if i == 0 {
+			continue
+		}
 		message, err := ParseTransaction(client, tx, false)
 		if err != nil {
 			return messages, err
