@@ -148,3 +148,32 @@ func GetAddrHandler(config *Config) func(w http.ResponseWriter, r *http.Request)
 		Respond(w, 200, addr)
 	}
 }
+
+func GetBalanceHandler(config *Config) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		err := r.ParseForm()
+		if err != nil {
+			log.Println("Could not parse body parameters")
+			RespondWithError(w, 400, "Could not parse parameters")
+			return
+		}
+
+		address := r.Form.Get("address")
+
+		log.Println("get balance of", address)
+		if address != "" && !VerifyAddress(address) {
+			log.Println("Invalid address:", address)
+			RespondWithError(w, 400, "Invalid address")
+			return
+		}
+
+		balance, err := getBalance(address)
+		if err != nil {
+			log.Println("get balance fail:", err)
+			RespondWithError(w, 500, "get balance fail")
+			return
+		}
+
+		Respond(w, 200, LeftShift(balance.String(), 8))
+	}
+}

@@ -70,6 +70,7 @@ func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/getAddress", GetAddrHandler(config))
 	r.HandleFunc("/sendCoin", SendCoinHandler(config))
+	r.HandleFunc("/getBalance", GetBalanceHandler(config))
 
 	r.NotFoundHandler = http.HandlerFunc(NotFoundHandler)
 	log.Println("last block: ", last_id)

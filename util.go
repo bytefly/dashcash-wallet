@@ -217,7 +217,6 @@ func RightShift(str string, size int) string {
 func VerifyAddress(address string) bool {
 	addr, err := btcutil.DecodeAddress(address, &DSCMainNetParams)
 	if err != nil {
-		log.Println("Invalid address:", addr)
 		return false
 	}
 

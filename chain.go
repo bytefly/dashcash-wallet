@@ -163,7 +163,6 @@ func ReadBlock(client *rpcclient.Client, block *big.Int) ([]NotifyMessage, error
 		return messages, fmt.Errorf("read block hash err: %v", err)
 	}
 
-	log.Println("block hash:", hash.String())
 	blockInfo, err := client.GetBlock(hash)
 	if err != nil {
 		return messages, fmt.Errorf("get block err: %v", err)

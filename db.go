@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"math/big"
+	"strings"
 
 	badger "github.com/dgraph-io/badger"
 )
@@ -52,4 +55,45 @@ func removeUtxo(hash string, index uint32, address string, value int64) error {
 	})
 
 	return err
+}
+
+func getBalance(address string) (*big.Int, error) {
+	balance := new(big.Int)
+	err := db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchSize = 10
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		for it.Rewind(); it.Valid(); it.Next() {
+			item := it.Item()
+			k := item.Key()
+			err := item.Value(func(v []byte) error {
+				pos := strings.IndexByte(string(k), '/')
+				hash := k[:pos]
+				index := k[pos+1:]
+
+				pos = strings.IndexByte(string(v), ':')
+				addr := v[:pos]
+				val := v[pos+1:]
+
+				if address == "" || address == string(addr) {
+					valInt, _ := new(big.Int).SetString(string(val), 10)
+					balance.Add(balance, valInt)
+				}
+				log.Printf("key=%s, value=%s hash: %s index: %s\n", k, v, hash, index)
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return balance, nil
 }
