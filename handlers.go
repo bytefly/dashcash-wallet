@@ -14,7 +14,7 @@ var m sync.Mutex
 func Respond(w http.ResponseWriter, code int, payload interface{}) {
 	ret := make(map[string]interface{})
 	ret["Code"] = code
-	if code >= 200 && code < 300 {
+	if code >= 0 && code < 300 {
 		ret["Msg"] = "success"
 	} else {
 		ret["Msg"] = "failure"
@@ -27,7 +27,7 @@ func Respond(w http.ResponseWriter, code int, payload interface{}) {
 	response, _ := json.Marshal(ret)
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
+	w.WriteHeader(200)
 	w.Write(response)
 }
 
@@ -110,7 +110,7 @@ func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 		}
 		addrs.Store(changeAddress, fmt.Sprintf("1/%d", config.InIndex))
 		config.InIndex++
-		Respond(w, 200, map[string]string{"txhash": hash})
+		Respond(w, 0, map[string]string{"txhash": hash})
 	}
 }
 
@@ -128,20 +128,13 @@ func GetAddrHandler(config *Config) func(w http.ResponseWriter, r *http.Request)
 		addrs.Store(addr, uint32(config.Index))
 		config.Index++
 
-		Respond(w, 200, addr)
+		Respond(w, 0, addr)
 	}
 }
 
 func GetBalanceHandler(config *Config) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		err := r.ParseForm()
-		if err != nil {
-			log.Println("Could not parse body parameters")
-			RespondWithError(w, 400, "Could not parse parameters")
-			return
-		}
-
-		address := r.Form.Get("address")
+		address := r.URL.Query().Get("address")
 
 		log.Println("get balance of", address)
 		if address != "" && !VerifyAddress(address) {
@@ -157,6 +150,6 @@ func GetBalanceHandler(config *Config) func(w http.ResponseWriter, r *http.Reque
 			return
 		}
 
-		Respond(w, 200, LeftShift(balance.String(), 8))
+		Respond(w, 0, map[string]string{"balance": LeftShift(balance.String(), 8)})
 	}
 }
