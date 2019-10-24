@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"math/big"
 	"net"
@@ -33,11 +34,16 @@ type NotifyMessage struct {
 var (
 	fDebug      bool
 	fConfigFile string
+
+	buildVer  = false
+	commitID  = "%COMMITID%"
+	buildTime = "%BUILDID%"
 )
 
 func init() {
 	flag.BoolVar(&fDebug, "debug", false, "Debug")
 	flag.StringVar(&fConfigFile, "cfg", "config.ini", "Configuration file")
+	flag.BoolVar(&buildVer, "version", false, "print build version and then exit")
 }
 
 func main() {
@@ -49,6 +55,11 @@ func main() {
 	var last_id uint64
 
 	flag.Parse()
+
+	fmt.Printf("BuildTime: %s\r\nCommit: %s\n", buildTime, commitID)
+	if buildVer {
+		os.Exit(0)
+	}
 
 	config, err := LoadConfiguration(fConfigFile)
 	if err != nil {
