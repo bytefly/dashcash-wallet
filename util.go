@@ -57,8 +57,6 @@ func getAddrByPubKey(pubKeyBytes []byte, testNet int) string {
 	payload = append(payload, h[0:4]...)
 	addr := base58.Encode(payload)
 
-	log.Println(addr, hex.EncodeToString(pubKeyBytes))
-
 	return addr
 }
 

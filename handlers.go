@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -41,6 +42,9 @@ func NotFoundHandler(w http.ResponseWriter, r *http.Request) {
 
 func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		m.Lock()
+		defer m.Unlock()
+
 		err := r.ParseForm()
 		if err != nil {
 			log.Println("SendEthHandler: Could not parse body parameters")
@@ -49,19 +53,12 @@ func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 		}
 
 		to := r.Form.Get("to")
-		amount := r.Form.Get("amount")
+		amountStr := r.Form.Get("amount")
 
 		if to == "" {
 			log.Println("Got Send btc order but to field is missing")
 			RespondWithError(w, 400, "Missing to field")
 			return
-		} else {
-			_, ok := addrs.Load(to)
-			if ok {
-				log.Println("to address is in our wallet")
-				RespondWithError(w, 500, "Couldn't launch transfering within the same wallet")
-				return
-			}
 		}
 
 		if !VerifyAddress(to) {
@@ -70,31 +67,50 @@ func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 			return
 		}
 
-		log.Println("send coin to", to, "amount:", amount)
+		log.Println("send coin to", to, "amount:", amountStr)
 
-		if amount == "" {
+		if amountStr == "" {
 			log.Println("amount is missing")
 			RespondWithError(w, 400, "Missing amount field")
 			return
 		}
 
-		_, err = strconv.ParseFloat(amount, 64)
+		amount, err := strconv.ParseInt(RightShift(amountStr, 8), 10, 64)
 		if err != nil {
-			RespondWithError(w, 400, "Could not convert amount")
+			RespondWithError(w, 400, "invalid amount")
 			return
 		}
-		/*//FIXME
-		bgAmountInt := new(big.Int)
-		bgAmountInt.SetString(RightShift(amount, 18), 10)
-		tx, err := SendEthCoin(config, bgAmountInt, private, to, nil, nil)
+
+		changeAddress, err := GetNewChangeAddr(config, config.InIndex)
 		if err != nil {
-			log.Println("send eth err:", err)
-			RespondWithError(w, 500, fmt.Sprintf("Could not send Ethereum coin: %v", err))
+			log.Println("get change address err:", err)
 			return
 		}
-		*/
-		tx := "demo"
-		Respond(w, 200, map[string]string{"txhash": tx})
+
+		outputs := make([]TxOut, 1)
+		outputs[0] = TxOut{Address: to, Amount: amount}
+		tx := CreateTxForOutputs(config.FeeRate, outputs, changeAddress)
+		if tx == nil {
+			RespondWithError(w, 500, "utxo out of balance")
+			return
+		}
+		signedTx, err := SignMsgTx(config.Xpriv, tx)
+		if err != nil {
+			RespondWithError(w, 500, "tx cannot be signed")
+			return
+		}
+		hash := signedTx.TxHash().String()
+
+		DumpMsgTxInput(signedTx)
+
+		hash, err = SendTransaction(config, signedTx)
+		if err != nil {
+			RespondWithError(w, 500, fmt.Sprintf("send tx err:%v", err))
+			return
+		}
+		addrs.Store(changeAddress, fmt.Sprintf("1/%d", config.InIndex))
+		config.InIndex++
+		Respond(w, 200, map[string]string{"txhash": hash})
 	}
 }
 
@@ -111,7 +127,7 @@ func GetAddrHandler(config *Config) func(w http.ResponseWriter, r *http.Request)
 		log.Println("send addr:", addr)
 		addrs.Store(addr, uint32(config.Index))
 		config.Index++
-		//Respond(w, 200, map[string]string{"address": addr})
+
 		Respond(w, 200, addr)
 	}
 }

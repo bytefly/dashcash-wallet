@@ -64,7 +64,6 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, isPending boo
 	outputAddrs2 := make([]string, 0)
 	outputValue := make(map[string]int64)
 
-	log.Println("handing tx", hash, "...")
 	//TODO: omni layer not contained
 	for i := 0; i < len(msgtx.TxIn); i++ {
 		prevHash := msgtx.TxIn[i].PreviousOutPoint.Hash
@@ -83,7 +82,7 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, isPending boo
 			log.Println("parse pkscript err:", err)
 			continue
 		}
-		//addr, err := pkScript.Address(&chaincfg.MainNetParams)
+
 		addr, err := pkScript.Address(&DSCMainNetParams)
 		if err != nil {
 			log.Println("get addr err:", err)
@@ -94,8 +93,8 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, isPending boo
 		if ok {
 			removeUtxo(prevHash.String(), prevIndex, addrStr, value)
 			inputAddrs = append(inputAddrs, addrStr)
+			log.Println("input:", addrStr)
 		}
-		log.Println("input:", addrStr)
 	}
 
 	for i := 0; i < len(msgtx.TxOut); i++ {
@@ -106,7 +105,7 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, isPending boo
 			log.Println("parse pkscript err:", err)
 			continue
 		}
-		//addr, err := pkScript.Address(&chaincfg.MainNetParams)
+
 		addr, err := pkScript.Address(&DSCMainNetParams)
 		if err != nil {
 			log.Println("get addr err:", err)
@@ -117,11 +116,11 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, isPending boo
 		if ok {
 			createUtxo(hash, uint32(i), addrStr, msgtx.TxOut[i].Value)
 			outputAddrs = append(outputAddrs, addrStr)
+			log.Println("output:", addrStr)
 		} else {
 			outputAddrs2 = append(outputAddrs2, addrStr)
 		}
 
-		log.Println("output:", addrStr)
 		outputValue[addrStr] = msgtx.TxOut[i].Value
 	}
 
@@ -148,7 +147,7 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, isPending boo
 			messages = append(messages, message)
 		}
 	} else if len(inputAddrs) > 0 && len(outputAddrs) > 0 {
-		log.Println("inner tx found")
+		log.Println("inner tx found:", hash)
 	}
 
 	return
@@ -184,7 +183,13 @@ func ReadBlock(client *rpcclient.Client, block *big.Int) ([]NotifyMessage, error
 	return messages, nil
 }
 
-func SendTransaction(client *rpcclient.Client, tx *wire.MsgTx) (string, error) {
+func SendTransaction(config *Config, tx *wire.MsgTx) (string, error) {
+	client, err := ConnectRPC(config)
+	if err != nil {
+		panic(err)
+	}
+	defer client.Shutdown()
+
 	hexHash, err := client.SendRawTransaction(tx, false)
 	if err != nil {
 		return "Send raw transaction error", err
