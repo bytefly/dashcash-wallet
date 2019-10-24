@@ -60,6 +60,7 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, isPending boo
 	hash := msgtx.TxHash().String()
 	var fee uint64
 	inputAddrs := make([]string, 0)
+	inputAddrs2 := make([]string, 0)
 	outputAddrs := make([]string, 0)
 	outputAddrs2 := make([]string, 0)
 	outputValue := make(map[string]int64)
@@ -94,6 +95,8 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, isPending boo
 			removeUtxo(prevHash.String(), prevIndex, addrStr, value)
 			inputAddrs = append(inputAddrs, addrStr)
 			log.Println("input:", addrStr)
+		} else {
+			inputAddrs2 = append(inputAddrs2, addrStr)
 		}
 	}
 
@@ -138,7 +141,7 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, isPending boo
 			message.Amount = big.NewInt(outputValue[message.Address])
 			messages = append(messages, message)
 		}
-	} else if len(inputAddrs) > 0 && len(outputAddrs) == 0 {
+	} else if len(inputAddrs2) == 0 && len(outputAddrs2) > 0 {
 		log.Println("withdraw tx found")
 		message.TxType = 1
 		for i := 0; i < len(outputAddrs2); i++ {
@@ -146,7 +149,7 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, isPending boo
 			message.Amount = big.NewInt(outputValue[message.Address])
 			messages = append(messages, message)
 		}
-	} else if len(inputAddrs) > 0 && len(outputAddrs) > 0 {
+	} else if len(inputAddrs2) == 0 && len(outputAddrs2) == 0 {
 		log.Println("inner tx found:", hash)
 	}
 
