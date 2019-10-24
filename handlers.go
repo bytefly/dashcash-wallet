@@ -153,3 +153,19 @@ func GetBalanceHandler(config *Config) func(w http.ResponseWriter, r *http.Reque
 		Respond(w, 0, map[string]string{"balance": LeftShift(balance.String(), 8)})
 	}
 }
+
+func DumpUtxoHandler(config *Config) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		utxos, err := GetAllUtxo("")
+		if err != nil {
+			log.Println("get all utxo err:", err)
+			RespondWithError(w, 500, "Error")
+			return
+		}
+
+		for _, u := range utxos {
+			log.Println(u.Hash, u.Index, " => ", u.Address, u.Value)
+		}
+		Respond(w, 0, "Done")
+	}
+}

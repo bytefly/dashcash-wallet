@@ -72,6 +72,8 @@ func main() {
 	r.HandleFunc("/sendCoin", SendCoinHandler(config))
 	r.HandleFunc("/getBalance", GetBalanceHandler(config))
 
+	r.HandleFunc("/dumpUtxo", DumpUtxoHandler(config))
+
 	r.NotFoundHandler = http.HandlerFunc(NotFoundHandler)
 	log.Println("last block: ", last_id)
 

@@ -70,7 +70,7 @@ func removeUtxo(hash string, index uint32, address string, value int64) error {
 
 func getBalance(address string) (*big.Int, error) {
 	balance := new(big.Int)
-	err := db.View(func(txn *badger.Txn) error {
+	db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchSize = 10
 		it := txn.NewIterator(opts)
@@ -92,10 +92,6 @@ func getBalance(address string) (*big.Int, error) {
 
 		return nil
 	})
-
-	if err != nil {
-		return nil, err
-	}
 
 	return balance, nil
 }
@@ -126,7 +122,7 @@ func GetUtxoByKey(hash string, index uint32) (*TxOut, error) {
 
 func GetAllUtxo(address string) ([]Utxo, error) {
 	utxos := make([]Utxo, 0)
-	err := db.View(func(txn *badger.Txn) error {
+	db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchSize = 10
 		it := txn.NewIterator(opts)
@@ -134,7 +130,7 @@ func GetAllUtxo(address string) ([]Utxo, error) {
 		for it.Rewind(); it.Valid(); it.Next() {
 			item := it.Item()
 			k := item.Key()
-			err := item.Value(func(v []byte) error {
+			item.Value(func(v []byte) error {
 				pos := strings.IndexByte(string(k), '/')
 				hash := string(k[:pos])
 				index, _ := strconv.ParseInt(string(k[pos+1:]), 10, 32)
@@ -149,15 +145,10 @@ func GetAllUtxo(address string) ([]Utxo, error) {
 				}
 				return nil
 			})
-			return err
 		}
 
 		return nil
 	})
-
-	if err != nil {
-		return nil, err
-	}
 
 	return utxos, nil
 }
