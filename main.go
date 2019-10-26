@@ -36,8 +36,8 @@ var (
 	fConfigFile string
 
 	buildVer  = false
-	commitID  = "%COMMITID%"
-	buildTime = "%BUILDID%"
+	commitID  string
+	buildTime string
 )
 
 func init() {
@@ -56,7 +56,7 @@ func main() {
 
 	flag.Parse()
 
-	fmt.Printf("BuildTime: %s\r\nCommit: %s\n", buildTime, commitID)
+	fmt.Printf("Build: %s\tLastCommit: %s\n", buildTime, commitID[:7])
 	if buildVer {
 		os.Exit(0)
 	}
