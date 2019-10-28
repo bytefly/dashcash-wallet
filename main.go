@@ -67,6 +67,12 @@ func main() {
 		return
 	}
 
+	client, err := ConnectRPC(config)
+	if err != nil {
+		log.Println("connect to RPC server err:", err)
+		return
+	}
+
 	last_id = config.LastBlock
 
 	AddressInit(config.Xpub, 0, int(config.Index), config.TestNet)
@@ -107,6 +113,8 @@ func main() {
 	}
 	go server.Serve(listener)
 
+	zmqInit(config.ZmqURL)
+
 	stop := 0
 	for {
 		select {
@@ -123,9 +131,17 @@ func main() {
 		if stop == 1 {
 			break
 		}
+
+		err = zmqProcess(client)
+		if err != nil {
+			zmqRestart(config.ZmqURL)
+		}
 	}
+
+	zmqClose(config.ZmqURL)
 	server.Close()
 	closeDb()
+	client.Shutdown()
 	SaveConfiguration(config, fConfigFile)
 	log.Println("bye")
 }

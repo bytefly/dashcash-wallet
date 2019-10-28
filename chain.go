@@ -13,11 +13,12 @@ import (
 func ConnectRPC(config *Config) (*rpcclient.Client, error) {
 	// Connect to local bitcoin core RPC server using HTTP POST mode.
 	connCfg := &rpcclient.ConnConfig{
-		Host:         config.RPCURL,
-		User:         config.RPCUser,
-		Pass:         config.RPCPass,
-		HTTPPostMode: true, // Bitcoin core only supports HTTP POST mode
-		DisableTLS:   true, // Bitcoin core does not provide TLS by default
+		Host:                 config.RPCURL,
+		User:                 config.RPCUser,
+		Pass:                 config.RPCPass,
+		HTTPPostMode:         true, // Bitcoin core only supports HTTP POST mode
+		DisableTLS:           true, // Bitcoin core does not provide TLS by default
+		DisableAutoReconnect: true,
 	}
 	// Notice the notification parameter is nil since notifications are
 	// not supported in HTTP POST mode.
@@ -50,7 +51,7 @@ func GetOmniTxStatus(c *Config, hash string) (bool, error) {
 	return txResult.Valid, nil
 }
 
-func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, isPending bool) (messages []NotifyMessage, err error) {
+func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx) (messages []NotifyMessage, err error) {
 	messages = make([]NotifyMessage, 0)
 
 	if msgtx == nil {
@@ -69,30 +70,29 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, isPending boo
 	for i := 0; i < len(msgtx.TxIn); i++ {
 		prevHash := msgtx.TxIn[i].PreviousOutPoint.Hash
 		prevIndex := msgtx.TxIn[i].PreviousOutPoint.Index
+		//ignore coinbase input
+		if prevIndex == 0xFFFFFFFF {
+			continue
+		}
 		tx, err := client.GetRawTransaction(&prevHash)
 		if err != nil {
-			log.Println("get transaction err:", err)
-			return messages, err
+			log.Println("get transaction err:", err, prevHash.String())
+			continue
 		}
 		value := tx.MsgTx().TxOut[prevIndex].Value
 		fee += uint64(value)
 
 		script := tx.MsgTx().TxOut[prevIndex].PkScript
-		pkScript, err := txscript.ParsePkScript(script)
+		_, addrSet, _, err := txscript.ExtractPkScriptAddrs(
+			script, &DSCMainNetParams)
 		if err != nil {
-			log.Println("parse pkscript err:", err)
+			log.Println("parse input pkscript err:", err, hash, i)
 			continue
 		}
 
-		addr, err := pkScript.Address(&DSCMainNetParams)
-		if err != nil {
-			log.Println("get addr err:", err)
-			continue
-		}
-		addrStr := addr.EncodeAddress()
+		addrStr := addrSet[0].EncodeAddress()
 		_, ok := addrs.Load(addrStr)
 		if ok {
-			removeUtxo(prevHash.String(), prevIndex, addrStr, value)
 			inputAddrs = append(inputAddrs, addrStr)
 			log.Println("input:", addrStr)
 		} else {
@@ -103,21 +103,16 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, isPending boo
 	for i := 0; i < len(msgtx.TxOut); i++ {
 		fee -= uint64(msgtx.TxOut[i].Value)
 
-		pkScript, err := txscript.ParsePkScript(msgtx.TxOut[i].PkScript)
+		_, addrSet, _, err := txscript.ExtractPkScriptAddrs(
+			msgtx.TxOut[i].PkScript, &DSCMainNetParams)
 		if err != nil {
-			log.Println("parse pkscript err:", err)
+			log.Println("parse output pkscript err:", err, hash, i)
 			continue
 		}
 
-		addr, err := pkScript.Address(&DSCMainNetParams)
-		if err != nil {
-			log.Println("get addr err:", err)
-			continue
-		}
-		addrStr := addr.EncodeAddress()
+		addrStr := addrSet[0].EncodeAddress()
 		_, ok := addrs.Load(addrStr)
 		if ok {
-			createUtxo(hash, uint32(i), addrStr, msgtx.TxOut[i].Value)
 			outputAddrs = append(outputAddrs, addrStr)
 			log.Println("output:", addrStr)
 		} else {
@@ -175,12 +170,10 @@ func ReadBlock(client *rpcclient.Client, block *big.Int) ([]NotifyMessage, error
 		if i == 0 {
 			continue
 		}
-		message, err := ParseTransaction(client, tx, false)
-		if err != nil {
-			return messages, err
+		message, err := ParseTransaction(client, tx)
+		if err == nil {
+			messages = append(messages, message...)
 		}
-
-		messages = append(messages, message...)
 	}
 
 	return messages, nil
@@ -200,4 +193,59 @@ func SendTransaction(config *Config, tx *wire.MsgTx) (string, error) {
 
 	hash := hexHash.String()
 	return hash, nil
+}
+
+func ParseMempoolTransaction(client *rpcclient.Client, msgtx *wire.MsgTx) (err error) {
+	if msgtx == nil {
+		return fmt.Errorf("Transaction is nil: Can't parse.")
+	}
+
+	hash := msgtx.TxHash().String()
+	for i := 0; i < len(msgtx.TxIn); i++ {
+		prevHash := msgtx.TxIn[i].PreviousOutPoint.Hash
+		prevIndex := msgtx.TxIn[i].PreviousOutPoint.Index
+		//ignore coinbase input
+		if prevIndex == 0xFFFFFFFF {
+			continue
+		}
+		tx, err := client.GetRawTransaction(&prevHash)
+		if err != nil {
+			log.Println("get transaction err:", err, prevHash.String())
+			continue
+		}
+		value := tx.MsgTx().TxOut[prevIndex].Value
+
+		script := tx.MsgTx().TxOut[prevIndex].PkScript
+		_, addrSet, _, err := txscript.ExtractPkScriptAddrs(
+			script, &DSCMainNetParams)
+		if err != nil {
+			log.Println("parse input pkscript err:", err, hash, i)
+			continue
+		}
+
+		addrStr := addrSet[0].EncodeAddress()
+		_, ok := addrs.Load(addrStr)
+		if ok {
+			removeUtxo(prevHash.String(), prevIndex, addrStr, value)
+			log.Println("remove utxo:", prevHash.String(), prevIndex, addrStr)
+		}
+	}
+
+	for i := 0; i < len(msgtx.TxOut); i++ {
+		_, addrSet, _, err := txscript.ExtractPkScriptAddrs(
+			msgtx.TxOut[i].PkScript, &DSCMainNetParams)
+		if err != nil {
+			log.Println("parse output pkscript err:", err, hash, i)
+			continue
+		}
+
+		addrStr := addrSet[0].EncodeAddress()
+		_, ok := addrs.Load(addrStr)
+		if ok {
+			createUtxo(hash, uint32(i), addrStr, msgtx.TxOut[i].Value)
+			log.Println("add utxo:", hash, i, addrStr)
+		}
+	}
+
+	return
 }

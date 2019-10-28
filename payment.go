@@ -36,9 +36,8 @@ func getScriptFromAddress(address string) ([]byte, error) {
 	case *btcutil.AddressWitnessPubKeyHash, *btcutil.AddressWitnessScriptHash:
 		script, _ = txscript.NewScriptBuilder().AddOp(txscript.OP_0).
 			AddData(addr.ScriptAddress()).Script()
-	case *btcutil.AddressPubKey: //TODO
-		log.Println("pub key address is not supported")
-		return nil, errors.New("Pub key addr not supported")
+	case *btcutil.AddressPubKey:
+		script, _ = txscript.NewScriptBuilder().AddData(addr.ScriptAddress()).AddOp(txscript.OP_CHECKSIG).Script()
 	case *btcutil.AddressPubKeyHash:
 		script, _ = txscript.NewScriptBuilder().AddOp(txscript.OP_DUP).AddOp(txscript.OP_HASH160).
 			AddData(addr.ScriptAddress()).AddOp(txscript.OP_EQUALVERIFY).AddOp(txscript.OP_CHECKSIG).
@@ -160,5 +159,17 @@ func SignMsgTx(xpriv string, tx *wire.MsgTx) (*wire.MsgTx, error) {
 func DumpMsgTxInput(tx *wire.MsgTx) {
 	for i := 0; i < len(tx.TxIn); i++ {
 		log.Println(tx.TxIn[i].PreviousOutPoint.String())
+	}
+}
+
+func DumpMsgTxOutput(tx *wire.MsgTx) {
+	for i := 0; i < len(tx.TxOut); i++ {
+		_, addrs, _, err := txscript.ExtractPkScriptAddrs(
+			tx.TxOut[i].PkScript, &DSCMainNetParams)
+		if err == nil {
+			log.Println(addrs[0].EncodeAddress(), tx.TxOut[i].Value)
+		} else {
+			log.Println("parse pkscript err:", err, i)
+		}
 	}
 }

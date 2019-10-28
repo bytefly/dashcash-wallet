@@ -21,6 +21,7 @@ type Config struct {
 	LastBlock    uint64
 	FeeRate      uint32
 	RegistryAddr string
+	ZmqURL       string
 }
 
 var cfg *ini.File
@@ -49,6 +50,7 @@ func LoadConfiguration(filepath string) (*Config, error) {
 	config.LastBlock = uint64(cfg.Section("extapi").Key("lastBlock").MustInt(0))
 	config.FeeRate = uint32(cfg.Section("extapi").Key("feerate").MustInt(0))
 	config.RegistryAddr = cfg.Section("extapi").Key("registry").String()
+	config.ZmqURL = cfg.Section("extapi").Key("zmq").String()
 	return config, nil
 }
 
