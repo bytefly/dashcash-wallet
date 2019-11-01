@@ -268,6 +268,15 @@ func CreateTxForOutputs(feePerKb uint32, outputs []TxOut, changeAddress string) 
 		log.Println("no outputs/insufficient funds")
 		return nil
 	} else if (tx != nil) && balance-(amount+feeAmount) > minAmount { // add change output
+		if changeAddress == "" {
+			// if no change address pass in, use the first input address
+			out, err := GetUtxoByKey(tx.TxIn[0].PreviousOutPoint.Hash.String(), tx.TxIn[0].PreviousOutPoint.Index)
+			if err != nil {
+				log.Println("utxo may be spent, you can try again")
+				return nil
+			}
+			changeAddress = out.Address
+		}
 		script, _ := getScriptFromAddress(changeAddress)
 		tx.AddTxOut(wire.NewTxOut(balance-(amount+feeAmount), script))
 	}

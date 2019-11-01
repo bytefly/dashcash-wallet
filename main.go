@@ -88,6 +88,8 @@ func main() {
 	r.HandleFunc("/getAddress", GetAddrHandler(config))
 	r.HandleFunc("/sendCoin", SendCoinHandler(config))
 	r.HandleFunc("/getBalance", GetBalanceHandler(config))
+	r.HandleFunc("/prepareTrezorSign", PrepareTrezorSignHandler(config))
+	r.HandleFunc("/sendSignedTx", SendSignedTxHandler(config))
 
 	r.HandleFunc("/dumpUtxo", DumpUtxoHandler(config))
 

@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/btcsuite/btcd/wire"
 	"log"
 	"net/http"
 	"strconv"
@@ -47,7 +50,6 @@ func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 
 		err := r.ParseForm()
 		if err != nil {
-			log.Println("SendEthHandler: Could not parse body parameters")
 			RespondWithError(w, 400, "Could not parse parameters")
 			return
 		}
@@ -94,14 +96,14 @@ func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 			RespondWithError(w, 500, "utxo out of balance")
 			return
 		}
+
+		DumpMsgTxInput(tx)
 		signedTx, err := SignMsgTx(config.Xpriv, tx)
 		if err != nil {
 			RespondWithError(w, 500, "tx cannot be signed")
 			return
 		}
 		hash := signedTx.TxHash().String()
-
-		DumpMsgTxInput(signedTx)
 
 		hash, err = SendTransaction(config, signedTx)
 		if err != nil {
@@ -111,6 +113,61 @@ func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 		addrs.Store(changeAddress, fmt.Sprintf("1/%d", config.InIndex))
 		config.InIndex++
 		Respond(w, 0, map[string]string{"txhash": hash})
+	}
+}
+
+func PrepareTrezorSignHandler(config *Config) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		err := r.ParseForm()
+		if err != nil {
+			RespondWithError(w, 400, "Could not parse parameters")
+			return
+		}
+
+		to := r.Form.Get("to")
+		amountStr := r.Form.Get("amount")
+
+		if to == "" {
+			log.Println("Got Send btc order but to field is missing")
+			RespondWithError(w, 400, "Missing to field")
+			return
+		}
+
+		if !VerifyAddress(to) {
+			log.Println("Invalid to address:", to)
+			RespondWithError(w, 400, "Invalid to address")
+			return
+		}
+
+		log.Println("preparing send coin to", to, "amount:", amountStr)
+
+		if amountStr == "" {
+			log.Println("amount is missing")
+			RespondWithError(w, 400, "Missing amount field")
+			return
+		}
+
+		amount, err := strconv.ParseInt(RightShift(amountStr, 8), 10, 64)
+		if err != nil {
+			RespondWithError(w, 400, "invalid amount")
+			return
+		}
+
+		outputs := make([]TxOut, 1)
+		outputs[0] = TxOut{Address: to, Amount: amount}
+		tx := CreateTxForOutputs(config.FeeRate, outputs, "")
+		if tx == nil {
+			RespondWithError(w, 500, "utxo out of balance")
+			return
+		}
+
+		DumpMsgTxInput(tx)
+		trezorTx, err := PrepareTrezorSign(config, tx)
+		if err != nil {
+			RespondWithError(w, 500, fmt.Sprintf("prepare trezor sign err:%v", err))
+			return
+		}
+		Respond(w, 0, map[string]string{"trezorTx": trezorTx})
 	}
 }
 
@@ -151,6 +208,47 @@ func GetBalanceHandler(config *Config) func(w http.ResponseWriter, r *http.Reque
 		}
 
 		Respond(w, 0, map[string]string{"balance": LeftShift(balance.String(), 8)})
+	}
+}
+
+func SendSignedTxHandler(config *Config) func(w http.ResponseWriter, r *http.Request) {
+	var tx wire.MsgTx
+	return func(w http.ResponseWriter, r *http.Request) {
+		err := r.ParseForm()
+		if err != nil {
+			RespondWithError(w, 400, "Could not parse parameters")
+			return
+		}
+
+		str := r.Form.Get("hex")
+		if str == "" {
+			log.Println("hex is empty")
+			RespondWithError(w, 400, "Missing hex")
+			return
+		}
+
+		buf, err := hex.DecodeString(str)
+		if err != nil {
+			log.Println("invalid hex string")
+			RespondWithError(w, 400, "invalid hex string")
+			return
+		}
+		err = tx.Deserialize(bytes.NewReader(buf))
+		if err != nil {
+			log.Println("invalid serialized transaction")
+			RespondWithError(w, 400, "invalid serialized transaction")
+			return
+		}
+
+		hash, err := SendTransaction(config, &tx)
+		if err != nil {
+			log.Println("send signed tx error: ", err)
+			RespondWithError(w, 500, fmt.Sprintf("send signed tx err: %v", err))
+			return
+		}
+		log.Println("send signed tx ok:", hash)
+
+		Respond(w, 0, map[string]string{"hash": hash})
 	}
 }
 
