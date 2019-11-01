@@ -174,7 +174,7 @@ func minOutputAmount(feePerKb uint32) int64 {
 	return TX_MIN_OUTPUT_AMOUNT
 }
 
-func CreateTxForOutputs(feePerKb uint32, outputs []TxOut, changeAddress string) *wire.MsgTx {
+func CreateTxForOutputs(feePerKb uint32, outputs []TxOut, changeAddress string) (*wire.MsgTx, bool) {
 	var (
 		totalBalance int64
 		balance      int64
@@ -187,7 +187,7 @@ func CreateTxForOutputs(feePerKb uint32, outputs []TxOut, changeAddress string) 
 	utxos, err := GetAllUtxo("")
 
 	if err != nil || len(utxos) == 0 {
-		return nil
+		return nil, false
 	}
 
 	for _, o := range utxos {
@@ -201,7 +201,7 @@ func CreateTxForOutputs(feePerKb uint32, outputs []TxOut, changeAddress string) 
 	//build a inital skeleton transaction
 	tx, err := BuildRawMsgTx(inputs, outputs)
 	if err != nil {
-		return nil
+		return nil, false
 	}
 
 	minAmount := minOutputAmount(feePerKb)
@@ -233,9 +233,9 @@ func CreateTxForOutputs(feePerKb uint32, outputs []TxOut, changeAddress string) 
 				}
 
 				newOutputs[len(newOutputs)-1].Amount -= amount + feeAmount - balance // reduce last output amount
-				tx = CreateTxForOutputs(feePerKb, newOutputs, changeAddress)
+				tx, _ = CreateTxForOutputs(feePerKb, newOutputs, changeAddress)
 			} else {
-				tx = CreateTxForOutputs(feePerKb, outputs[0:len(outputs)-1], changeAddress) // remove last output
+				tx, _ = CreateTxForOutputs(feePerKb, outputs[0:len(outputs)-1], changeAddress) // remove last output
 			}
 
 			balance = 0
@@ -266,20 +266,21 @@ func CreateTxForOutputs(feePerKb uint32, outputs []TxOut, changeAddress string) 
 
 	if (tx != nil) && (len(outputs) < 1 || balance < amount+feeAmount) { // no outputs/insufficient funds
 		log.Println("no outputs/insufficient funds")
-		return nil
+		return nil, false
 	} else if (tx != nil) && balance-(amount+feeAmount) > minAmount { // add change output
 		if changeAddress == "" {
 			// if no change address pass in, use the first input address
 			out, err := GetUtxoByKey(tx.TxIn[0].PreviousOutPoint.Hash.String(), tx.TxIn[0].PreviousOutPoint.Index)
 			if err != nil {
 				log.Println("utxo may be spent, you can try again")
-				return nil
+				return nil, false
 			}
 			changeAddress = out.Address
 		}
 		script, _ := getScriptFromAddress(changeAddress)
 		tx.AddTxOut(wire.NewTxOut(balance-(amount+feeAmount), script))
+		return tx, true
 	}
 
-	return tx
+	return tx, false
 }

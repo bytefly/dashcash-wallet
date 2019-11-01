@@ -91,7 +91,7 @@ func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 
 		outputs := make([]TxOut, 1)
 		outputs[0] = TxOut{Address: to, Amount: amount}
-		tx := CreateTxForOutputs(config.FeeRate, outputs, changeAddress)
+		tx, hasChange := CreateTxForOutputs(config.FeeRate, outputs, changeAddress)
 		if tx == nil {
 			RespondWithError(w, 500, "utxo out of balance")
 			return
@@ -110,8 +110,10 @@ func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 			RespondWithError(w, 500, fmt.Sprintf("send tx err:%v", err))
 			return
 		}
-		addrs.Store(changeAddress, fmt.Sprintf("1/%d", config.InIndex))
-		config.InIndex++
+		if hasChange {
+			addrs.Store(changeAddress, fmt.Sprintf("1/%d", config.InIndex))
+			config.InIndex++
+		}
 		Respond(w, 0, map[string]string{"txhash": hash})
 	}
 }
@@ -155,7 +157,7 @@ func PrepareTrezorSignHandler(config *Config) func(w http.ResponseWriter, r *htt
 
 		outputs := make([]TxOut, 1)
 		outputs[0] = TxOut{Address: to, Amount: amount}
-		tx := CreateTxForOutputs(config.FeeRate, outputs, "")
+		tx, _ := CreateTxForOutputs(config.FeeRate, outputs, "")
 		if tx == nil {
 			RespondWithError(w, 500, "utxo out of balance")
 			return
