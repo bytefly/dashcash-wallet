@@ -97,7 +97,6 @@ func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 			return
 		}
 
-		DumpMsgTxInput(tx)
 		signedTx, err := SignMsgTx(config.Xpriv, tx)
 		if err != nil {
 			RespondWithError(w, 500, "tx cannot be signed")
@@ -163,7 +162,6 @@ func PrepareTrezorSignHandler(config *Config) func(w http.ResponseWriter, r *htt
 			return
 		}
 
-		DumpMsgTxInput(tx)
 		trezorTx, err := PrepareTrezorSign(config, tx)
 		if err != nil {
 			RespondWithError(w, 500, fmt.Sprintf("prepare trezor sign err:%v", err))
