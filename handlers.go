@@ -83,15 +83,9 @@ func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 			return
 		}
 
-		changeAddress, err := GetNewChangeAddr(config, config.InIndex)
-		if err != nil {
-			log.Println("get change address err:", err)
-			return
-		}
-
 		outputs := make([]TxOut, 1)
 		outputs[0] = TxOut{Address: to, Amount: amount}
-		tx, hasChange := CreateTxForOutputs(config.FeeRate, outputs, changeAddress)
+		tx, _ := CreateTxForOutputs(config.FeeRate, outputs, "", true)
 		if tx == nil {
 			RespondWithError(w, 500, "utxo out of balance")
 			return
@@ -109,16 +103,15 @@ func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 			RespondWithError(w, 500, fmt.Sprintf("send tx err:%v", err))
 			return
 		}
-		if hasChange {
-			addrs.Store(changeAddress, fmt.Sprintf("1/%d", config.InIndex))
-			config.InIndex++
-		}
 		Respond(w, 0, map[string]string{"txhash": hash})
 	}
 }
 
 func PrepareTrezorSignHandler(config *Config) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		m.Lock()
+		defer m.Unlock()
+
 		err := r.ParseForm()
 		if err != nil {
 			RespondWithError(w, 400, "Could not parse parameters")
@@ -157,9 +150,15 @@ func PrepareTrezorSignHandler(config *Config) func(w http.ResponseWriter, r *htt
 			}
 		}
 
+		changeAddress, err := GetNewChangeAddr(config, config.InIndex)
+		if err != nil {
+			log.Println("get change address err:", err)
+			return
+		}
+
 		outputs := make([]TxOut, 1)
 		outputs[0] = TxOut{Address: to, Amount: amount}
-		tx, _ := CreateTxForOutputs(config.FeeRate, outputs, "")
+		tx, hasChange := CreateTxForOutputs(config.FeeRate, outputs, changeAddress, false)
 		if tx == nil {
 			RespondWithError(w, 500, "utxo out of balance")
 			return
@@ -169,6 +168,10 @@ func PrepareTrezorSignHandler(config *Config) func(w http.ResponseWriter, r *htt
 		if err != nil {
 			RespondWithError(w, 500, fmt.Sprintf("prepare trezor sign err:%v", err))
 			return
+		}
+		if hasChange {
+			addrs.Store(changeAddress, fmt.Sprintf("1/%d", config.InIndex))
+			config.InIndex++
 		}
 		Respond(w, 0, map[string]string{"trezorTx": trezorTx})
 	}

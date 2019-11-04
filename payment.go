@@ -131,6 +131,10 @@ func BuildSignedMsgTx(xpriv string, inputs []TxInput, outputs []TxOut) (*wire.Ms
 		pos := strings.IndexByte(val.(string), '/')
 		branch, _ := strconv.ParseInt(val.(string)[0:pos], 10, 32)
 		addrId, _ := strconv.ParseInt(val.(string)[pos+1:], 10, 32)
+		if branch != 1 {
+			log.Println("input must only come from inner address")
+			return nil, errors.New("invalid input")
+		}
 		privKey, _ := GetPrivateKey(xpriv, int(branch), int(addrId))
 		//log.Println("privkey:", hex.EncodeToString(privKey.ToECDSA().D.Bytes()))
 		sig, err := txscript.SignatureScript(
@@ -175,6 +179,10 @@ func SignMsgTx(xpriv string, tx *wire.MsgTx) (*wire.MsgTx, error) {
 		pos := strings.IndexByte(val.(string), '/')
 		branch, _ := strconv.ParseInt(val.(string)[0:pos], 10, 32)
 		addrId, _ := strconv.ParseInt(val.(string)[pos+1:], 10, 32)
+		if branch != 1 {
+			log.Println("input must only come from inner address")
+			return nil, errors.New("invalid input")
+		}
 		privKey, _ := GetPrivateKey(xpriv, int(branch), int(addrId))
 		//log.Println("privkey:", hex.EncodeToString(privKey.ToECDSA().D.Bytes()))
 		sig, err := txscript.SignatureScript(
@@ -243,7 +251,7 @@ func PrepareTrezorSign(config *Config, tx *wire.MsgTx) (string, error) {
 		addrId, _ := strconv.ParseInt(val.(string)[pos+1:], 10, 32)
 
 		trezorTx.Inputs[i].AddressN[0] = 44 | 0x80000000
-		trezorTx.Inputs[i].AddressN[1] = 1208 | 0x80000000
+		trezorTx.Inputs[i].AddressN[1] = 0 | 0x80000000 // FIXME: must be 1208
 		trezorTx.Inputs[i].AddressN[2] = 0 | 0x80000000 //account 0
 		trezorTx.Inputs[i].AddressN[3] = uint32(branch)
 		trezorTx.Inputs[i].AddressN[4] = uint32(addrId)

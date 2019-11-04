@@ -185,6 +185,43 @@ func GetAllUtxo(address string) ([]Utxo, error) {
 	return utxos, nil
 }
 
+func GetAllUtxoByBranch(branch uint32) ([]Utxo, error) {
+	utxos := make([]Utxo, 0)
+	db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchSize = 10
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		for it.Rewind(); it.Valid(); it.Next() {
+			item := it.Item()
+			k := item.Key()
+			item.Value(func(v []byte) error {
+				pos := strings.IndexByte(string(k), '/')
+				hash := string(k[:pos])
+				index, _ := strconv.ParseInt(string(k[pos+1:]), 10, 32)
+
+				pos = strings.IndexByte(string(v), ':')
+				addr := string(v[:pos])
+				val, _ := strconv.ParseInt(string(v[pos+1:]), 10, 64)
+
+				path, ok := addrs.Load(string(addr))
+				if ok {
+					pos = strings.Index(path.(string), fmt.Sprintf("%d/", branch))
+					if pos == 0 {
+						utxo := Utxo{Hash: hash, Index: uint32(index), Address: addr, Value: val}
+						utxos = append(utxos, utxo)
+					}
+				}
+				return nil
+			})
+		}
+
+		return nil
+	})
+
+	return utxos, nil
+}
+
 func txFee(feePerKb uint32, size uint32) int64 {
 	// standard fee based on tx size
 	standardFee := int64(size*TX_FEE_PER_KB) / 1000
@@ -206,18 +243,24 @@ func minOutputAmount(feePerKb uint32) int64 {
 	return TX_MIN_OUTPUT_AMOUNT
 }
 
-func CreateTxForOutputs(feePerKb uint32, outputs []TxOut, changeAddress string) (*wire.MsgTx, bool) {
+func CreateTxForOutputs(feePerKb uint32, outputs []TxOut, changeAddress string, useInnerUtxo bool) (*wire.MsgTx, bool) {
 	var (
 		totalBalance int64
 		balance      int64
 		cpfpSize     int
 		amount       int64
+		branch       uint32
 	)
 
 	inputs := make([]TxInput, 0)
 	// caching all utxos may be better
-	utxos, err := GetAllUtxo("")
+	if useInnerUtxo {
+		branch = 1
+	} else {
+		branch = 0
+	}
 
+	utxos, err := GetAllUtxoByBranch(branch)
 	if err != nil || len(utxos) == 0 {
 		return nil, false
 	}
@@ -265,9 +308,9 @@ func CreateTxForOutputs(feePerKb uint32, outputs []TxOut, changeAddress string) 
 				}
 
 				newOutputs[len(newOutputs)-1].Amount -= amount + feeAmount - balance // reduce last output amount
-				tx, _ = CreateTxForOutputs(feePerKb, newOutputs, changeAddress)
+				tx, _ = CreateTxForOutputs(feePerKb, newOutputs, changeAddress, useInnerUtxo)
 			} else {
-				tx, _ = CreateTxForOutputs(feePerKb, outputs[0:len(outputs)-1], changeAddress) // remove last output
+				tx, _ = CreateTxForOutputs(feePerKb, outputs[0:len(outputs)-1], changeAddress, useInnerUtxo) // remove last output
 			}
 
 			balance = 0

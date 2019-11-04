@@ -115,13 +115,7 @@ func GetPrivateKey(xpriv string, branch int, index int) (privKey *btcec.PrivateK
 		return
 	}
 
-	acct, err := masterKey.Child(uint32(branch))
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	acctExt, err := acct.Child(uint32(index))
+	acctExt, err := masterKey.Child(uint32(index))
 	if err != nil {
 		log.Println(err)
 		return
