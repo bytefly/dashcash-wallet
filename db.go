@@ -96,6 +96,38 @@ func getBalance(address string) (*big.Int, error) {
 	return balance, nil
 }
 
+func getInnerBalance() (*big.Int, error) {
+	balance := new(big.Int)
+	db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchSize = 10
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		for it.Rewind(); it.Valid(); it.Next() {
+			item := it.Item()
+			item.Value(func(v []byte) error {
+				pos := strings.IndexByte(string(v), ':')
+				addr := v[:pos]
+				val := v[pos+1:]
+
+				path, ok := addrs.Load(string(addr))
+				if ok {
+					pos = strings.Index(path.(string), "1/")
+					if pos == 0 {
+						valInt, _ := new(big.Int).SetString(string(val), 10)
+						balance.Add(balance, valInt)
+					}
+				}
+				return nil
+			})
+		}
+
+		return nil
+	})
+
+	return balance, nil
+}
+
 func GetUtxoByKey(hash string, index uint32) (*TxOut, error) {
 	out := new(TxOut)
 	err := db.View(func(txn *badger.Txn) error {

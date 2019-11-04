@@ -189,6 +189,21 @@ func GetAddrHandler(config *Config) func(w http.ResponseWriter, r *http.Request)
 	}
 }
 
+func GetInnerBalanceHandler(config *Config) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Println("get inner balance")
+
+		balance, err := getInnerBalance()
+		if err != nil {
+			log.Println("get inner balance fail:", err)
+			RespondWithError(w, 500, "get inner balance fail")
+			return
+		}
+
+		Respond(w, 0, map[string]string{"balance": LeftShift(balance.String(), 8)})
+	}
+}
+
 func GetBalanceHandler(config *Config) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		address := r.URL.Query().Get("address")
