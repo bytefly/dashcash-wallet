@@ -128,13 +128,7 @@ func PrepareTrezorSignHandler(config *Config) func(w http.ResponseWriter, r *htt
 		to := r.Form.Get("to")
 		amountStr := r.Form.Get("amount")
 
-		if to == "" {
-			log.Println("Got Send btc order but to field is missing")
-			RespondWithError(w, 400, "Missing to field")
-			return
-		}
-
-		if !VerifyAddress(to) {
+		if to != "" && !VerifyAddress(to) {
 			log.Println("Invalid to address:", to)
 			RespondWithError(w, 400, "Invalid to address")
 			return
@@ -152,6 +146,15 @@ func PrepareTrezorSignHandler(config *Config) func(w http.ResponseWriter, r *htt
 		if err != nil {
 			RespondWithError(w, 400, "invalid amount")
 			return
+		}
+
+		if to == "" {
+			log.Println("to is missing, use inner first address instead")
+			to, err = GetNewChangeAddr(config, 0)
+			if err != nil {
+				RespondWithError(w, 500, fmt.Sprintf("get change addr err:%v", err))
+				return
+			}
 		}
 
 		outputs := make([]TxOut, 1)
