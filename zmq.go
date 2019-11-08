@@ -40,7 +40,7 @@ func zmqInit(url string) (err error) {
 	return
 }
 
-func zmqProcess(client *rpcclient.Client) error {
+func zmqProcess(client *rpcclient.Client, chainName string) error {
 	if poller == nil || subSocket == nil {
 		return errors.New("zmq not init yet")
 	}
@@ -79,7 +79,7 @@ func zmqProcess(client *rpcclient.Client) error {
 					rbuf := bytes.NewReader(msg)
 					err = tx.Deserialize(rbuf)
 					if err == nil {
-						ParseMempoolTransaction(client, &tx)
+						ParseMempoolTransaction(client, &tx, chainName)
 					}
 				} else { //4 bytes nSequence
 					//log.Println(binary.LittleEndian.Uint32(msg))

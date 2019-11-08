@@ -1,11 +1,14 @@
-package main
+package util
 
 import (
 	"github.com/btcsuite/btcd/chaincfg"
+	"strings"
 )
 
+var chainParams map[string]*chaincfg.Params
+
 var BTCMainNetParams = chaincfg.Params{
-	Name: "mainnet",
+	Name: "btc",
 
 	// Human-readable part for Bech32 encoded segwit addresses, as defined in
 	// BIP 173.
@@ -25,21 +28,8 @@ var BTCMainNetParams = chaincfg.Params{
 	HDCoinType: 0,
 }
 
-/*
-const DSC_MAIN_NETWORK = {
-    messagePrefix : '\x19DashCash Signed Message:\n',
-    bip32 : {
-        public : 0x0488b21e,
-        private : 0x0488ade4
-    },
-    pubKeyHash : 0x1e,
-    scriptHash : 0x10,
-    wif : 0xcc,
-    dustThreshold: 5460
-};
-*/
 var DSCMainNetParams = chaincfg.Params{
-	Name: "mainnet",
+	Name: "dsc",
 
 	// Human-readable part for Bech32 encoded segwit addresses, as defined in
 	// BIP 173.
@@ -57,4 +47,18 @@ var DSCMainNetParams = chaincfg.Params{
 	// BIP44 coin type used in the hierarchical deterministic path for
 	// address generation.
 	HDCoinType: 0,
+}
+
+func GetParamByName(name string) *chaincfg.Params {
+	if chainParams == nil {
+		chainParams = make(map[string]*chaincfg.Params)
+		chainParams["btc"] = &BTCMainNetParams
+		chainParams["dsc"] = &DSCMainNetParams
+	}
+
+	param, ok := chainParams[strings.ToLower(name)]
+	if !ok {
+		return nil
+	}
+	return param
 }

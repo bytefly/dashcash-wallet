@@ -1,13 +1,16 @@
-package main
+package util
 
 import (
+	"bytes"
 	"crypto/sha256"
-	"encoding/hex"
+	"encoding/binary"
 	"fmt"
 	"github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil"
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/btcsuite/btcutil/hdkeychain"
+	conf "github.com/bytefly/dashcash-wallet/config"
 	"golang.org/x/crypto/ripemd160"
 	"log"
 	"strings"
@@ -16,7 +19,7 @@ import (
 
 var addrs sync.Map
 
-func AddressInit(xpub string, branch uint32, total int, forTest int) {
+func AddressInit(xpub string, branch uint32, total int, param *chaincfg.Params) {
 	masterKey, err := hdkeychain.NewKeyFromString(xpub)
 	if err != nil {
 		log.Println(err)
@@ -37,18 +40,17 @@ func AddressInit(xpub string, branch uint32, total int, forTest int) {
 		}
 
 		pubkey, _ := acctExt.ECPubKey()
-		addr := getAddrByPubKey(pubkey.SerializeCompressed(), forTest)
+		addr := getAddrByPubKey(pubkey.SerializeCompressed(), param)
 		addrs.Store(addr, fmt.Sprintf("%d/%d", branch, i))
 	}
 }
 
-func getAddrByPubKey(pubKeyBytes []byte, testNet int) string {
+func getAddrByPubKey(pubKeyBytes []byte, param *chaincfg.Params) string {
 	data := hash160(pubKeyBytes)
-	//dsc has no testnet, we make it equals to mainet for convenience
-	PREFIX := [2]string{"1E", "1E"}
-	hexBytes, _ := hex.DecodeString(PREFIX[testNet])
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.BigEndian, param.PubKeyHashAddrID)
 	payload := make([]byte, 0)
-	payload = append(payload, hexBytes...)
+	payload = append(payload, buf.Bytes()...)
 	payload = append(payload, data...)
 
 	h := sha256.Sum256(payload)
@@ -73,17 +75,17 @@ func ripemd160h(data []byte) []byte {
 	return h.Sum(nil)
 }
 
-func GetNewExternalAddr(config *Config, index uint32) (addr string, err error) {
+func GetNewExternalAddr(config *conf.Config, index uint32) (addr string, err error) {
 	addr, err = getNewAddrByBranch(config, 0, index)
 	return
 }
 
-func GetNewChangeAddr(config *Config, index uint32) (addr string, err error) {
+func GetNewChangeAddr(config *conf.Config, index uint32) (addr string, err error) {
 	addr, err = getNewAddrByBranch(config, 1, index)
 	return
 }
 
-func getNewAddrByBranch(config *Config, branch, index uint32) (addr string, err error) {
+func getNewAddrByBranch(config *conf.Config, branch, index uint32) (addr string, err error) {
 	masterKey, err := hdkeychain.NewKeyFromString(config.Xpub)
 	if err != nil {
 		log.Println(err)
@@ -103,7 +105,8 @@ func getNewAddrByBranch(config *Config, branch, index uint32) (addr string, err 
 	}
 
 	pubkey, _ := acctExt.ECPubKey()
-	addr = getAddrByPubKey(pubkey.SerializeCompressed(), config.TestNet)
+	param := GetParamByName(config.ChainName)
+	addr = getAddrByPubKey(pubkey.SerializeCompressed(), param)
 	addrs.Store(addr, fmt.Sprintf("%d/%d", branch, index))
 	return
 }
@@ -205,16 +208,29 @@ func RightShift(str string, size int) string {
 	return string(bytes)
 }
 
-func VerifyAddress(address string) bool {
-	addr, err := btcutil.DecodeAddress(address, &DSCMainNetParams)
+func VerifyAddress(chain, address string) bool {
+	param := GetParamByName(chain)
+	addr, err := btcutil.DecodeAddress(address, param)
 	if err != nil {
 		return false
 	}
 
-	if false == addr.IsForNet(&DSCMainNetParams) {
+	if false == addr.IsForNet(param) {
 		log.Println("address not from mainnet")
 		return false
 	}
 
 	return true
+}
+
+func LoadAddrPath(addr string) (string, bool) {
+	path, ok := addrs.Load(addr)
+	if !ok {
+		return "", ok
+	}
+	return path.(string), ok
+}
+
+func StoreAddrPath(addr, path string) {
+	addrs.Store(addr, path)
 }

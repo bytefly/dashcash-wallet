@@ -1,16 +1,21 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	conf "github.com/bytefly/dashcash-wallet/config"
+	"github.com/bytefly/dashcash-wallet/util"
 	"github.com/ibclabs/omnilayer-go"
 	"log"
 	"math/big"
+	"strings"
 )
 
-func ConnectRPC(config *Config) (*rpcclient.Client, error) {
+func ConnectRPC(config *conf.Config) (*rpcclient.Client, error) {
 	// Connect to local bitcoin core RPC server using HTTP POST mode.
 	connCfg := &rpcclient.ConnConfig{
 		Host:                 config.RPCURL,
@@ -31,7 +36,7 @@ func ConnectRPC(config *Config) (*rpcclient.Client, error) {
 	return client, nil
 }
 
-func GetOmniTxStatus(c *Config, hash string) (bool, error) {
+func GetOmniTxStatus(c *conf.Config, hash string) (bool, error) {
 	var config = &omnilayer.ConnConfig{
 		Host:                 c.RPCURL,
 		User:                 c.RPCUser,
@@ -51,22 +56,29 @@ func GetOmniTxStatus(c *Config, hash string) (bool, error) {
 	return txResult.Valid, nil
 }
 
-func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx) (messages []NotifyMessage, err error) {
+func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName string) (messages []NotifyMessage, err error) {
+	var (
+		fee              uint64
+		opReturnNum      int
+		firstOpReturnPos int
+		omniReceiver     string
+		omniSender       string
+		foundSender      bool
+	)
 	messages = make([]NotifyMessage, 0)
+	param := util.GetParamByName(chainName)
 
 	if msgtx == nil {
 		return messages, fmt.Errorf("Transaction is nil: Can't parse.")
 	}
 
 	hash := msgtx.TxHash().String()
-	var fee uint64
 	inputAddrs := make([]string, 0)
 	inputAddrs2 := make([]string, 0)
 	outputAddrs := make([]string, 0)
 	outputAddrs2 := make([]string, 0)
 	outputValue := make(map[string]int64)
 
-	//TODO: omni layer not contained
 	for i := 0; i < len(msgtx.TxIn); i++ {
 		prevHash := msgtx.TxIn[i].PreviousOutPoint.Hash
 		prevIndex := msgtx.TxIn[i].PreviousOutPoint.Index
@@ -84,50 +96,111 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx) (messages []N
 
 		script := tx.MsgTx().TxOut[prevIndex].PkScript
 		_, addrSet, _, err := txscript.ExtractPkScriptAddrs(
-			script, &DSCMainNetParams)
+			script, param)
 		if err != nil {
 			log.Println("parse input pkscript err:", err, hash, i)
 			continue
 		}
 
 		addrStr := addrSet[0].EncodeAddress()
-		_, ok := addrs.Load(addrStr)
+		_, ok := util.LoadAddrPath(addrStr)
 		if ok {
 			inputAddrs = append(inputAddrs, addrStr)
-			log.Println("input:", addrStr)
+			removeUtxo(prevHash.String(), prevIndex, addrStr, value)
+			log.Println("remove utxo:", prevHash.String(), prevIndex, addrStr)
 		} else {
 			inputAddrs2 = append(inputAddrs2, addrStr)
 		}
+		if i == 0 {
+			omniSender = addrStr
+		}
 	}
 
-	for i := 0; i < len(msgtx.TxOut); i++ {
+	for i := len(msgtx.TxOut) - 1; i >= 0; i-- {
 		fee -= uint64(msgtx.TxOut[i].Value)
 
+		if msgtx.TxOut[i].Value == 0 && txscript.GetScriptClass(msgtx.TxOut[i].PkScript) == txscript.NullDataTy {
+			opReturnNum++
+			if opReturnNum == 1 {
+				firstOpReturnPos = i
+			}
+			continue
+		}
+
 		_, addrSet, _, err := txscript.ExtractPkScriptAddrs(
-			msgtx.TxOut[i].PkScript, &DSCMainNetParams)
+			msgtx.TxOut[i].PkScript, param)
 		if err != nil {
 			log.Println("parse output pkscript err:", err, hash, i)
 			continue
 		}
 
 		addrStr := addrSet[0].EncodeAddress()
-		_, ok := addrs.Load(addrStr)
+		_, ok := util.LoadAddrPath(addrStr)
 		if ok {
 			outputAddrs = append(outputAddrs, addrStr)
-			log.Println("output:", addrStr)
+			createUtxo(hash, uint32(i), addrStr, msgtx.TxOut[i].Value)
+			log.Println("add utxo:", hash, i, addrStr)
 		} else {
 			outputAddrs2 = append(outputAddrs2, addrStr)
 		}
 
 		outputValue[addrStr] = msgtx.TxOut[i].Value
+
+		if omniReceiver == "" {
+			if addrStr == omniSender {
+				if foundSender {
+					omniReceiver = addrStr
+				} else {
+					foundSender = true
+				}
+			} else {
+				//find the omni receiver
+				omniReceiver = addrStr
+			}
+		}
 	}
 
 	message := NotifyMessage{
 		MessageType: NOTIFY_TYPE_TX,
 		TxHash:      hash,
 		Fee:         big.NewInt(int64(fee)),
-		Coin:        "DSC",
+		Coin:        strings.ToUpper(chainName),
 	}
+	if strings.EqualFold(chainName, "btc") && opReturnNum == 1 && omniReceiver != "" {
+		omniScript := msgtx.TxOut[firstOpReturnPos].PkScript
+		_, senderExist := util.LoadAddrPath(omniSender)
+		_, receiverExist := util.LoadAddrPath(omniReceiver)
+		txType := -1
+		if !senderExist && receiverExist {
+			txType = 0
+		} else if senderExist && !receiverExist {
+			txType = 1
+		} else if senderExist && receiverExist {
+			log.Println("inner USDT tx")
+		}
+
+		if txType >= 0 {
+			message.TxType = txType
+			if len(omniScript) != 22 {
+				log.Println("script len is invalid, ignore it")
+			} else {
+				//only support USDT@btc
+				omniTemplate := []byte("omni\x00\x00\x00\x00\x00\x00\x00\x1f")
+				if bytes.Compare(omniScript[2:14], omniTemplate) != 0 {
+					log.Println("not a usdt send tx, ignore it")
+				} else {
+					omniValue := binary.BigEndian.Uint64(omniScript[14:])
+					message.Coin = "USDT"
+					message.Address = omniReceiver
+					message.Amount = new(big.Int).SetUint64(omniValue)
+					messages = append(messages, message)
+					log.Println("USDT tx found, type:", message.TxType, hash, omniReceiver, omniValue)
+				}
+			}
+		}
+	}
+
+	message.Coin = strings.ToUpper(chainName)
 	if len(inputAddrs) == 0 && len(outputAddrs) > 0 {
 		log.Println("deposit tx found")
 		message.TxType = 0
@@ -151,7 +224,7 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx) (messages []N
 	return
 }
 
-func ReadBlock(client *rpcclient.Client, block *big.Int) ([]NotifyMessage, error) {
+func ReadBlock(client *rpcclient.Client, block *big.Int, chainName string) ([]NotifyMessage, error) {
 	var err error
 	messages := make([]NotifyMessage, 0)
 
@@ -170,7 +243,7 @@ func ReadBlock(client *rpcclient.Client, block *big.Int) ([]NotifyMessage, error
 		if i == 0 {
 			continue
 		}
-		message, err := ParseTransaction(client, tx)
+		message, err := ParseTransaction(client, tx, chainName)
 		if err == nil {
 			messages = append(messages, message...)
 		}
@@ -179,7 +252,7 @@ func ReadBlock(client *rpcclient.Client, block *big.Int) ([]NotifyMessage, error
 	return messages, nil
 }
 
-func SendTransaction(config *Config, tx *wire.MsgTx) (string, error) {
+func SendTransaction(config *conf.Config, tx *wire.MsgTx) (string, error) {
 	client, err := ConnectRPC(config)
 	if err != nil {
 		panic(err)
@@ -195,7 +268,8 @@ func SendTransaction(config *Config, tx *wire.MsgTx) (string, error) {
 	return hash, nil
 }
 
-func ParseMempoolTransaction(client *rpcclient.Client, msgtx *wire.MsgTx) (err error) {
+func ParseMempoolTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName string) (err error) {
+	param := util.GetParamByName(chainName)
 	if msgtx == nil {
 		return fmt.Errorf("Transaction is nil: Can't parse.")
 	}
@@ -217,14 +291,14 @@ func ParseMempoolTransaction(client *rpcclient.Client, msgtx *wire.MsgTx) (err e
 
 		script := tx.MsgTx().TxOut[prevIndex].PkScript
 		_, addrSet, _, err := txscript.ExtractPkScriptAddrs(
-			script, &DSCMainNetParams)
+			script, param)
 		if err != nil {
 			log.Println("parse input pkscript err:", err, hash, i)
 			continue
 		}
 
 		addrStr := addrSet[0].EncodeAddress()
-		_, ok := addrs.Load(addrStr)
+		_, ok := util.LoadAddrPath(addrStr)
 		if ok {
 			removeUtxo(prevHash.String(), prevIndex, addrStr, value)
 			log.Println("remove utxo:", prevHash.String(), prevIndex, addrStr)
@@ -233,14 +307,14 @@ func ParseMempoolTransaction(client *rpcclient.Client, msgtx *wire.MsgTx) (err e
 
 	for i := 0; i < len(msgtx.TxOut); i++ {
 		_, addrSet, _, err := txscript.ExtractPkScriptAddrs(
-			msgtx.TxOut[i].PkScript, &DSCMainNetParams)
+			msgtx.TxOut[i].PkScript, param)
 		if err != nil {
 			log.Println("parse output pkscript err:", err, hash, i)
 			continue
 		}
 
 		addrStr := addrSet[0].EncodeAddress()
-		_, ok := addrs.Load(addrStr)
+		_, ok := util.LoadAddrPath(addrStr)
 		if ok {
 			createUtxo(hash, uint32(i), addrStr, msgtx.TxOut[i].Value)
 			log.Println("add utxo:", hash, i, addrStr)

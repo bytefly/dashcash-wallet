@@ -6,9 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/btcsuite/btcd/wire"
+	conf "github.com/bytefly/dashcash-wallet/config"
+	"github.com/bytefly/dashcash-wallet/usdt"
+	"github.com/bytefly/dashcash-wallet/util"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -43,7 +47,8 @@ func NotFoundHandler(w http.ResponseWriter, r *http.Request) {
 	RespondWithError(w, 404, "Not found")
 }
 
-func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request) {
+func SendCoinHandler(config *conf.Config) func(w http.ResponseWriter, r *http.Request) {
+	param := util.GetParamByName(config.ChainName)
 	return func(w http.ResponseWriter, r *http.Request) {
 		m.Lock()
 		defer m.Unlock()
@@ -63,7 +68,7 @@ func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 			return
 		}
 
-		if !VerifyAddress(to) {
+		if !util.VerifyAddress(config.ChainName, to) {
 			log.Println("Invalid to address:", to)
 			RespondWithError(w, 400, "Invalid to address")
 			return
@@ -77,7 +82,7 @@ func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 			return
 		}
 
-		amount, err := strconv.ParseInt(RightShift(amountStr, 8), 10, 64)
+		amount, err := strconv.ParseInt(util.RightShift(amountStr, 8), 10, 64)
 		if err != nil {
 			RespondWithError(w, 400, "invalid amount")
 			return
@@ -85,13 +90,13 @@ func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 
 		outputs := make([]TxOut, 1)
 		outputs[0] = TxOut{Address: to, Amount: amount}
-		tx, _ := CreateTxForOutputs(config.FeeRate, outputs, "", true)
+		tx, _ := CreateTxForOutputs(config.FeeRate, outputs, "", param, true)
 		if tx == nil {
 			RespondWithError(w, 500, "utxo out of balance")
 			return
 		}
 
-		signedTx, err := SignMsgTx(config.Xpriv, tx)
+		signedTx, err := SignMsgTx(config.ChainName, config.Xpriv, tx)
 		if err != nil {
 			RespondWithError(w, 500, "tx cannot be signed")
 			return
@@ -107,7 +112,8 @@ func SendCoinHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 	}
 }
 
-func PrepareTrezorSignHandler(config *Config) func(w http.ResponseWriter, r *http.Request) {
+func PrepareTrezorSignHandler(config *conf.Config) func(w http.ResponseWriter, r *http.Request) {
+	param := util.GetParamByName(config.ChainName)
 	return func(w http.ResponseWriter, r *http.Request) {
 		m.Lock()
 		defer m.Unlock()
@@ -121,7 +127,7 @@ func PrepareTrezorSignHandler(config *Config) func(w http.ResponseWriter, r *htt
 		to := r.Form.Get("to")
 		amountStr := r.Form.Get("amount")
 
-		if to != "" && !VerifyAddress(to) {
+		if to != "" && !util.VerifyAddress(config.ChainName, to) {
 			log.Println("Invalid to address:", to)
 			RespondWithError(w, 400, "Invalid to address")
 			return
@@ -135,7 +141,7 @@ func PrepareTrezorSignHandler(config *Config) func(w http.ResponseWriter, r *htt
 			return
 		}
 
-		amount, err := strconv.ParseInt(RightShift(amountStr, 8), 10, 64)
+		amount, err := strconv.ParseInt(util.RightShift(amountStr, 8), 10, 64)
 		if err != nil {
 			RespondWithError(w, 400, "invalid amount")
 			return
@@ -143,14 +149,14 @@ func PrepareTrezorSignHandler(config *Config) func(w http.ResponseWriter, r *htt
 
 		if to == "" {
 			log.Println("to is missing, use inner first address instead")
-			to, err = GetNewChangeAddr(config, 0)
+			to, err = util.GetNewChangeAddr(config, 0)
 			if err != nil {
 				RespondWithError(w, 500, fmt.Sprintf("get change addr err:%v", err))
 				return
 			}
 		}
 
-		changeAddress, err := GetNewChangeAddr(config, config.InIndex)
+		changeAddress, err := util.GetNewChangeAddr(config, config.InIndex)
 		if err != nil {
 			log.Println("get change address err:", err)
 			return
@@ -158,7 +164,7 @@ func PrepareTrezorSignHandler(config *Config) func(w http.ResponseWriter, r *htt
 
 		outputs := make([]TxOut, 1)
 		outputs[0] = TxOut{Address: to, Amount: amount}
-		tx, hasChange := CreateTxForOutputs(config.FeeRate, outputs, changeAddress, false)
+		tx, hasChange := CreateTxForOutputs(config.FeeRate, outputs, changeAddress, param, false)
 		if tx == nil {
 			RespondWithError(w, 500, "utxo out of balance")
 			return
@@ -170,32 +176,32 @@ func PrepareTrezorSignHandler(config *Config) func(w http.ResponseWriter, r *htt
 			return
 		}
 		if hasChange {
-			addrs.Store(changeAddress, fmt.Sprintf("1/%d", config.InIndex))
+			util.StoreAddrPath(changeAddress, fmt.Sprintf("1/%d", config.InIndex))
 			config.InIndex++
 		}
 		Respond(w, 0, map[string]string{"trezorTx": trezorTx})
 	}
 }
 
-func GetAddrHandler(config *Config) func(w http.ResponseWriter, r *http.Request) {
+func GetAddrHandler(config *conf.Config) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		m.Lock()
 		defer m.Unlock()
-		addr, err := GetNewExternalAddr(config, config.Index)
+		addr, err := util.GetNewExternalAddr(config, config.Index)
 		if err != nil {
 			log.Println("create address error: ", err)
 			RespondWithError(w, 500, "Couldn't create eth address")
 			return
 		}
 		log.Println("send addr:", addr)
-		addrs.Store(addr, uint32(config.Index))
+		util.StoreAddrPath(addr, fmt.Sprintf("0/%d", config.Index))
 		config.Index++
 
 		Respond(w, 0, addr)
 	}
 }
 
-func GetInnerBalanceHandler(config *Config) func(w http.ResponseWriter, r *http.Request) {
+func GetInnerBalanceHandler(config *conf.Config) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Println("get inner balance")
 
@@ -206,16 +212,16 @@ func GetInnerBalanceHandler(config *Config) func(w http.ResponseWriter, r *http.
 			return
 		}
 
-		Respond(w, 0, map[string]string{"balance": LeftShift(balance.String(), 8)})
+		Respond(w, 0, map[string]string{"balance": util.LeftShift(balance.String(), 8)})
 	}
 }
 
-func GetBalanceHandler(config *Config) func(w http.ResponseWriter, r *http.Request) {
+func GetBalanceHandler(config *conf.Config) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		address := r.URL.Query().Get("address")
 
 		log.Println("get balance of", address)
-		if address != "" && !VerifyAddress(address) {
+		if address != "" && !util.VerifyAddress(config.ChainName, address) {
 			log.Println("Invalid address:", address)
 			RespondWithError(w, 400, "Invalid address")
 			return
@@ -228,11 +234,11 @@ func GetBalanceHandler(config *Config) func(w http.ResponseWriter, r *http.Reque
 			return
 		}
 
-		Respond(w, 0, map[string]string{"balance": LeftShift(balance.String(), 8)})
+		Respond(w, 0, map[string]string{"balance": util.LeftShift(balance.String(), 8)})
 	}
 }
 
-func SendSignedTxHandler(config *Config) func(w http.ResponseWriter, r *http.Request) {
+func SendSignedTxHandler(config *conf.Config) func(w http.ResponseWriter, r *http.Request) {
 	var tx wire.MsgTx
 	return func(w http.ResponseWriter, r *http.Request) {
 		err := r.ParseForm()
@@ -273,7 +279,7 @@ func SendSignedTxHandler(config *Config) func(w http.ResponseWriter, r *http.Req
 	}
 }
 
-func DumpUtxoHandler(config *Config) func(w http.ResponseWriter, r *http.Request) {
+func DumpUtxoHandler(config *conf.Config) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		utxos, err := GetAllUtxo("")
 		if err != nil {
@@ -286,5 +292,110 @@ func DumpUtxoHandler(config *Config) func(w http.ResponseWriter, r *http.Request
 			log.Println(u.Hash, u.Index, " => ", u.Address, u.Value)
 		}
 		Respond(w, 0, "Done")
+	}
+}
+
+func SendOmniCoinHandler(config *conf.Config) func(w http.ResponseWriter, r *http.Request) {
+	param := util.GetParamByName(config.ChainName)
+	return func(w http.ResponseWriter, r *http.Request) {
+		m.Lock()
+		defer m.Unlock()
+
+		if !strings.EqualFold(config.ChainName, "btc") {
+			RespondWithError(w, 400, "omni coin not supported in the chain")
+			return
+		}
+
+		err := r.ParseForm()
+		if err != nil {
+			RespondWithError(w, 400, "Could not parse parameters")
+			return
+		}
+
+		token := r.Form.Get("token")
+		from := r.Form.Get("from")
+		to := r.Form.Get("to")
+		amountStr := r.Form.Get("amount")
+
+		if token != "USDT" {
+			log.Println("only USDT support now")
+			RespondWithError(w, 400, "invalid token")
+			return
+		}
+		// use the first inner address as sender in default
+		if from == "" {
+			from, _ = util.GetNewChangeAddr(config, 0)
+		}
+		if to == "" {
+			log.Println("Got Send USDT order but to field is missing")
+			RespondWithError(w, 400, "Missing to field")
+			return
+		}
+
+		if !util.VerifyAddress(config.ChainName, to) {
+			log.Println("Invalid to address:", to)
+			RespondWithError(w, 400, "Invalid to address")
+			return
+		}
+
+		log.Println("send", token, "to", to, "amount:", amountStr)
+
+		if amountStr == "" {
+			log.Println("amount is missing")
+			RespondWithError(w, 400, "Missing amount field")
+			return
+		}
+
+		amount, err := strconv.ParseInt(util.RightShift(amountStr, 8), 10, 64)
+		if err != nil {
+			RespondWithError(w, 400, "invalid amount")
+			return
+		}
+
+		//check balance
+		pendingAmount, err := usdt.GetOMNIPendingAmount(config, from, usdt.OMNIToken)
+		if err != nil {
+			RespondWithError(w, 400, "get pending transactions error")
+			return
+		}
+		balance, err := usdt.GetUSDTBalance(config, from)
+		if err != nil {
+			RespondWithError(w, 400, "get usdt balance error")
+			return
+		}
+		if balance < amount {
+			log.Printf("no enough balance, balance: %.8f, amount: %.8f\n", balance, amount)
+			RespondWithError(w, 400, "No enough balance for transfer")
+			return
+		}
+		if balance < (pendingAmount + amount) {
+			log.Printf("no enough balance, balance: %.8f, amount: %.8f, pending_amount: %.8f\n", balance, amount, pendingAmount)
+			RespondWithError(w, 400, "So many pending transactions that balance is less")
+			return
+		}
+
+		//FIXME: should contain a sender input
+		outputs := make([]TxOut, 2)
+		outputs[0] = TxOut{Script: usdt.GetOmniUsdtScript(uint64(amount))}
+		outputs[1] = TxOut{Address: to, Amount: 546}
+		tx, _ := CreateTxForOutputs(config.FeeRate, outputs, "", param, true)
+		if tx == nil {
+			RespondWithError(w, 500, "utxo out of balance")
+			return
+		}
+
+		signedTx, err := SignMsgTx(config.ChainName, config.Xpriv, tx)
+		if err != nil {
+			RespondWithError(w, 500, "tx cannot be signed")
+			return
+		}
+		hash := signedTx.TxHash().String()
+
+		hash, err = SendTransaction(config, signedTx)
+		if err != nil {
+			RespondWithError(w, 500, fmt.Sprintf("send tx err:%v", err))
+			return
+		}
+		Respond(w, 0, map[string]string{"txhash": hash})
 	}
 }

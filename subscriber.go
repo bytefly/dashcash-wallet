@@ -1,6 +1,8 @@
 package main
 
 import (
+	conf "github.com/bytefly/dashcash-wallet/config"
+	"github.com/bytefly/dashcash-wallet/util"
 	"log"
 	"math/big"
 	"time"
@@ -55,7 +57,7 @@ type ObjMessage struct {
 	Number *big.Int
 }
 
-func GetNewerBlock(config *Config, ch chan<- ObjMessage) error {
+func GetNewerBlock(config *conf.Config, ch chan<- ObjMessage) error {
 	client, err := ConnectRPC(config)
 	if err != nil {
 		return err
@@ -74,7 +76,7 @@ func GetNewerBlock(config *Config, ch chan<- ObjMessage) error {
 	return nil
 }
 
-func Listener(config *Config, ch <-chan ObjMessage, notifyChannel chan<- NotifyMessage, last_id uint64) {
+func Listener(config *conf.Config, ch <-chan ObjMessage, notifyChannel chan<- NotifyMessage, last_id uint64) {
 	client, err := ConnectRPC(config)
 	if err != nil {
 		panic(err)
@@ -91,7 +93,7 @@ func Listener(config *Config, ch <-chan ObjMessage, notifyChannel chan<- NotifyM
 			stop.Sub(message.Number, big.NewInt(3))
 			for 0 != last.Cmp(stop) {
 				//log.Printf("Recovery: Doing block %s", last.Text(10))
-				txns, err := ReadBlock(client, last)
+				txns, err := ReadBlock(client, last, config.ChainName)
 				if err != nil {
 					log.Println("Listener:", err)
 					break
@@ -116,7 +118,7 @@ func Listener(config *Config, ch <-chan ObjMessage, notifyChannel chan<- NotifyM
 	}
 }
 
-func Notifier(config *Config, ch <-chan NotifyMessage) {
+func Notifier(config *conf.Config, ch <-chan NotifyMessage) {
 	var (
 		symbol string
 		addr   string
@@ -137,8 +139,8 @@ func Notifier(config *Config, ch <-chan NotifyMessage) {
 		amountString := message.Amount.Text(10)
 		addr = message.Address
 		symbol = message.Coin
-		amount = LeftShift(amountString, 8)
-		fee = LeftShift(message.Fee.String(), 8)
+		amount = util.LeftShift(amountString, 8)
+		fee = util.LeftShift(message.Fee.String(), 8)
 
 		if symbol == "USDT" {
 			status, err := GetOmniTxStatus(config, message.TxHash)
@@ -154,16 +156,20 @@ func Notifier(config *Config, ch <-chan NotifyMessage) {
 
 		switch message.TxType {
 		case 0:
+			//small btc deposit less then 0.001 is ignored
+			if symbol == "BTC" && message.Amount.Uint64() > 100000 {
+				break
+			}
 			log.Printf("%s %s tokens deposit to %s, tx: %s\n", symbol, amount, addr, message.TxHash)
-			storeTokenDepositTx(symbol, message.TxHash, addr, amount)
+			storeTokenDepositTx(config, symbol, message.TxHash, addr, amount)
 		case 1:
 			log.Printf("%s %s tokens withdraw to %s, tx: %s fee: %s\n", symbol, amount, addr, message.TxHash, fee)
-			storeTokenWithdrawTx(symbol, message.TxHash, addr, amount, fee)
+			storeTokenWithdrawTx(config, symbol, message.TxHash, addr, amount, fee)
 		}
 	}
 }
 
-func Subscriber(config *Config, notifyChannel chan<- NotifyMessage, last_id uint64) {
+func Subscriber(config *conf.Config, notifyChannel chan<- NotifyMessage, last_id uint64) {
 	ch := make(chan ObjMessage, 1024)
 
 	go Listener(config, ch, notifyChannel, last_id)

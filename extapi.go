@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/TarsCloud/TarsGo/tars"
 	"github.com/bytefly/dashcash-wallet/NeexTrx"
+	conf "github.com/bytefly/dashcash-wallet/config"
 	"log"
 )
 
@@ -10,10 +11,10 @@ const (
 	CHAIN_ID = 4
 )
 
-func storeTokenDepositTx(token string, hash string, addr string, amount string) {
+func storeTokenDepositTx(config *conf.Config, token string, hash string, addr string, amount string) {
 	comm := tars.NewCommunicator()
 	obj := "NeexTrx.FreezingSysServer.FreezingSysObj"
-	registry := cfg.Section("extapi").Key("registry").String()
+	registry := config.RegistryAddr
 	comm.SetProperty("locator", "tars.tarsregistry.QueryObj@tcp -h "+registry+" -p 17890")
 	app := new(NeexTrx.FreezingSys)
 
@@ -27,10 +28,10 @@ func storeTokenDepositTx(token string, hash string, addr string, amount string) 
 	log.Println("call freezing deposit result:", ret)
 }
 
-func storeTokenWithdrawTx(token string, hash string, addr string, amount string, fee string) {
+func storeTokenWithdrawTx(config *conf.Config, token string, hash string, addr string, amount string, fee string) {
 	comm := tars.NewCommunicator()
 	obj := "NeexTrx.FreezingSysServer.FreezingSysObj"
-	registry := cfg.Section("extapi").Key("registry").String()
+	registry := config.RegistryAddr
 	comm.SetProperty("locator", "tars.tarsregistry.QueryObj@tcp -h "+registry+" -p 17890")
 	app := new(NeexTrx.FreezingSys)
 

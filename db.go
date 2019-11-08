@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/bytefly/dashcash-wallet/util"
 	"log"
 	"math/big"
 	"strconv"
@@ -28,9 +30,9 @@ const (
 	TX_MAX_SIZE = 100000
 )
 
-func openDb() error {
+func openDb(chainName string) error {
 	var err error
-	db, err = badger.Open(badger.DefaultOptions("/tmp/badger"))
+	db, err = badger.Open(badger.DefaultOptions("/tmp/badger/" + chainName))
 	return err
 }
 
@@ -110,9 +112,9 @@ func getInnerBalance() (*big.Int, error) {
 				addr := v[:pos]
 				val := v[pos+1:]
 
-				path, ok := addrs.Load(string(addr))
+				path, ok := util.LoadAddrPath(string(addr))
 				if ok {
-					pos = strings.Index(path.(string), "1/")
+					pos = strings.Index(path, "1/")
 					if pos == 0 {
 						valInt, _ := new(big.Int).SetString(string(val), 10)
 						balance.Add(balance, valInt)
@@ -204,9 +206,9 @@ func GetAllUtxoByBranch(branch uint32) ([]Utxo, error) {
 				addr := string(v[:pos])
 				val, _ := strconv.ParseInt(string(v[pos+1:]), 10, 64)
 
-				path, ok := addrs.Load(string(addr))
+				path, ok := util.LoadAddrPath(string(addr))
 				if ok {
-					pos = strings.Index(path.(string), fmt.Sprintf("%d/", branch))
+					pos = strings.Index(path, fmt.Sprintf("%d/", branch))
 					if pos == 0 {
 						utxo := Utxo{Hash: hash, Index: uint32(index), Address: addr, Value: val}
 						utxos = append(utxos, utxo)
@@ -243,7 +245,7 @@ func minOutputAmount(feePerKb uint32) int64 {
 	return TX_MIN_OUTPUT_AMOUNT
 }
 
-func CreateTxForOutputs(feePerKb uint32, outputs []TxOut, changeAddress string, useInnerUtxo bool) (*wire.MsgTx, bool) {
+func CreateTxForOutputs(feePerKb uint32, outputs []TxOut, changeAddress string, param *chaincfg.Params, useInnerUtxo bool) (*wire.MsgTx, bool) {
 	var (
 		totalBalance int64
 		balance      int64
@@ -252,7 +254,6 @@ func CreateTxForOutputs(feePerKb uint32, outputs []TxOut, changeAddress string, 
 		branch       uint32
 	)
 
-	inputs := make([]TxInput, 0)
 	// caching all utxos may be better
 	if useInnerUtxo {
 		branch = 1
@@ -274,7 +275,7 @@ func CreateTxForOutputs(feePerKb uint32, outputs []TxOut, changeAddress string, 
 	}
 
 	//build a inital skeleton transaction
-	tx, err := BuildRawMsgTx(inputs, outputs)
+	tx, err := BuildRawMsgTx(param, nil, outputs)
 	if err != nil {
 		return nil, false
 	}
@@ -308,9 +309,9 @@ func CreateTxForOutputs(feePerKb uint32, outputs []TxOut, changeAddress string, 
 				}
 
 				newOutputs[len(newOutputs)-1].Amount -= amount + feeAmount - balance // reduce last output amount
-				tx, _ = CreateTxForOutputs(feePerKb, newOutputs, changeAddress, useInnerUtxo)
+				tx, _ = CreateTxForOutputs(feePerKb, newOutputs, changeAddress, param, useInnerUtxo)
 			} else {
-				tx, _ = CreateTxForOutputs(feePerKb, outputs[0:len(outputs)-1], changeAddress, useInnerUtxo) // remove last output
+				tx, _ = CreateTxForOutputs(feePerKb, outputs[0:len(outputs)-1], changeAddress, param, useInnerUtxo) // remove last output
 			}
 
 			balance = 0
@@ -352,7 +353,7 @@ func CreateTxForOutputs(feePerKb uint32, outputs []TxOut, changeAddress string, 
 			}
 			changeAddress = out.Address
 		}
-		script, _ := getScriptFromAddress(changeAddress)
+		script, _ := getScriptFromAddress(changeAddress, param)
 		tx.AddTxOut(wire.NewTxOut(balance-(amount+feeAmount), script))
 		return tx, true
 	}

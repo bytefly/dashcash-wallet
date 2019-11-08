@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"gopkg.in/ini.v1"
@@ -6,11 +6,12 @@ import (
 )
 
 type Config struct {
-	TestNet int
-	RPCURL  string
-	RPCUser string
-	RPCPass string
-	Port    int
+	TestNet   int
+	ChainName string
+	RPCURL    string
+	RPCUser   string
+	RPCPass   string
+	Port      int
 
 	Xpub      string
 	Xpriv     string
@@ -36,6 +37,7 @@ func LoadConfiguration(filepath string) (*Config, error) {
 	config := new(Config)
 
 	config.TestNet = cfg.Section("network").Key("testnet").MustInt(0)
+	config.ChainName = cfg.Section("network").Key("chain").String()
 	config.RPCURL = cfg.Section("network").Key("rpc_host").String()
 	config.RPCUser = cfg.Section("network").Key("rpc_user").String()
 	config.RPCPass = cfg.Section("network").Key("rpc_pass").String()

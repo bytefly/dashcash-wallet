@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"time"
 
+	conf "github.com/bytefly/dashcash-wallet/config"
+	"github.com/bytefly/dashcash-wallet/util"
 	"github.com/gorilla/mux"
 )
 
@@ -61,9 +63,15 @@ func main() {
 		os.Exit(0)
 	}
 
-	config, err := LoadConfiguration(fConfigFile)
+	config, err := conf.LoadConfiguration(fConfigFile)
 	if err != nil {
 		log.Println("load cfg err:", err)
+		return
+	}
+
+	param := util.GetParamByName(config.ChainName)
+	if param == nil {
+		log.Println("unsupport chain!!!")
 		return
 	}
 
@@ -75,10 +83,10 @@ func main() {
 
 	last_id = config.LastBlock
 
-	AddressInit(config.Xpub, 0, int(config.Index), config.TestNet)
-	AddressInit(config.Xpub, 1, int(config.InIndex), config.TestNet)
+	util.AddressInit(config.Xpub, 0, int(config.Index), param)
+	util.AddressInit(config.Xpub, 1, int(config.InIndex), param)
 
-	err = openDb()
+	err = openDb(config.ChainName)
 	if err != nil {
 		log.Println("open db err:", err)
 		return
@@ -91,6 +99,7 @@ func main() {
 	r.HandleFunc("/prepareTrezorSign", PrepareTrezorSignHandler(config))
 	r.HandleFunc("/sendSignedTx", SendSignedTxHandler(config))
 	r.HandleFunc("/getInnerBalance", GetInnerBalanceHandler(config))
+	r.HandleFunc("/sendOmniCoin", SendOmniCoinHandler(config))
 
 	r.HandleFunc("/dumpUtxo", DumpUtxoHandler(config))
 
@@ -135,7 +144,7 @@ func main() {
 			break
 		}
 
-		err = zmqProcess(client)
+		err = zmqProcess(client, config.ChainName)
 		if err != nil {
 			zmqRestart(config.ZmqURL)
 		}
@@ -145,6 +154,6 @@ func main() {
 	server.Close()
 	closeDb()
 	client.Shutdown()
-	SaveConfiguration(config, fConfigFile)
+	conf.SaveConfiguration(config, fConfigFile)
 	log.Println("bye")
 }

@@ -4,10 +4,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcutil"
+	conf "github.com/bytefly/dashcash-wallet/config"
+	"github.com/bytefly/dashcash-wallet/util"
 	"log"
 	"strconv"
 	"strings"
@@ -22,6 +25,7 @@ type TxInput struct {
 type TxOut struct {
 	Address string
 	Amount  int64
+	Script  []byte
 }
 
 type Utxo struct {
@@ -67,9 +71,9 @@ type TrezorTx struct {
 	RefTxs  []TrezorRefTx  `json:"refTxs"`
 }
 
-func getScriptFromAddress(address string) ([]byte, error) {
+func getScriptFromAddress(address string, param *chaincfg.Params) ([]byte, error) {
 	var script []byte
-	addr, _ := btcutil.DecodeAddress(address, &DSCMainNetParams)
+	addr, _ := btcutil.DecodeAddress(address, param)
 	switch addr.(type) {
 	case *btcutil.AddressWitnessPubKeyHash, *btcutil.AddressWitnessScriptHash:
 		script, _ = txscript.NewScriptBuilder().AddOp(txscript.OP_0).
@@ -88,54 +92,60 @@ func getScriptFromAddress(address string) ([]byte, error) {
 	return script, nil
 }
 
-func BuildRawMsgTx(inputs []TxInput, outputs []TxOut) (*wire.MsgTx, error) {
+func BuildRawMsgTx(param *chaincfg.Params, inputs []TxInput, outputs []TxOut) (*wire.MsgTx, error) {
 	tx := wire.NewMsgTx(wire.TxVersion)
 
-	for i := 0; i < len(inputs); i++ {
-		utxoHash, _ := chainhash.NewHashFromStr(inputs[i].Hash)
-		point := wire.OutPoint{Hash: *utxoHash, Index: inputs[i].Index}
-		tx.AddTxIn(wire.NewTxIn(&point, nil, nil))
+	if inputs != nil {
+		for i := 0; i < len(inputs); i++ {
+			utxoHash, _ := chainhash.NewHashFromStr(inputs[i].Hash)
+			point := wire.OutPoint{Hash: *utxoHash, Index: inputs[i].Index}
+			tx.AddTxIn(wire.NewTxIn(&point, nil, nil))
+		}
 	}
 
 	for i := 0; i < len(outputs); i++ {
-		script, err := getScriptFromAddress(outputs[i].Address)
-		if err != nil {
-			return nil, err
-		}
+		if outputs[i].Address != "" {
+			script, err := getScriptFromAddress(outputs[i].Address, param)
+			if err != nil {
+				return nil, err
+			}
 
-		amount := outputs[i].Amount
-		tx.AddTxOut(wire.NewTxOut(amount, script))
+			tx.AddTxOut(wire.NewTxOut(outputs[i].Amount, script))
+		} else {
+			tx.AddTxOut(wire.NewTxOut(outputs[i].Amount, outputs[i].Script))
+		}
 	}
 
 	return tx, nil
 }
 
-func BuildSignedMsgTx(xpriv string, inputs []TxInput, outputs []TxOut) (*wire.MsgTx, error) {
-	tx, err := BuildRawMsgTx(inputs, outputs)
+func BuildSignedMsgTx(chain, xpriv string, inputs []TxInput, outputs []TxOut) (*wire.MsgTx, error) {
+	param := util.GetParamByName(chain)
+	tx, err := BuildRawMsgTx(param, inputs, outputs)
 	if err != nil {
 		return nil, err
 	}
 
 	for i := 0; i < len(inputs); i++ {
-		val, ok := addrs.Load(inputs[i].Address)
+		val, ok := util.LoadAddrPath(inputs[i].Address)
 		if !ok {
 			log.Println("utxo not fround in wallet")
 			return nil, errors.New("Unspendable utxo found")
 		}
 
-		script, err := getScriptFromAddress(inputs[i].Address)
+		script, err := getScriptFromAddress(inputs[i].Address, param)
 		if err != nil {
 			return nil, err
 		}
 
-		pos := strings.IndexByte(val.(string), '/')
-		branch, _ := strconv.ParseInt(val.(string)[0:pos], 10, 32)
-		addrId, _ := strconv.ParseInt(val.(string)[pos+1:], 10, 32)
+		pos := strings.IndexByte(val, '/')
+		branch, _ := strconv.ParseInt(val[0:pos], 10, 32)
+		addrId, _ := strconv.ParseInt(val[pos+1:], 10, 32)
 		if branch != 1 {
 			log.Println("input must only come from inner address")
 			return nil, errors.New("invalid input")
 		}
-		privKey, _ := GetPrivateKey(xpriv, int(branch), int(addrId))
+		privKey, _ := util.GetPrivateKey(xpriv, int(branch), int(addrId))
 		//log.Println("privkey:", hex.EncodeToString(privKey.ToECDSA().D.Bytes()))
 		sig, err := txscript.SignatureScript(
 			tx,                  // The tx to be signed.
@@ -154,8 +164,9 @@ func BuildSignedMsgTx(xpriv string, inputs []TxInput, outputs []TxOut) (*wire.Ms
 	return tx, nil
 }
 
-func SignMsgTx(xpriv string, tx *wire.MsgTx) (*wire.MsgTx, error) {
+func SignMsgTx(chain, xpriv string, tx *wire.MsgTx) (*wire.MsgTx, error) {
 	signedTx := tx.Copy()
+	param := util.GetParamByName(chain)
 	for i := 0; i < len(signedTx.TxIn); i++ {
 		outPoint := tx.TxIn[i].PreviousOutPoint
 		out, err := GetUtxoByKey(outPoint.Hash.String(), outPoint.Index)
@@ -165,25 +176,25 @@ func SignMsgTx(xpriv string, tx *wire.MsgTx) (*wire.MsgTx, error) {
 		}
 
 		address := out.Address
-		val, ok := addrs.Load(address)
+		val, ok := util.LoadAddrPath(address)
 		if !ok {
 			log.Println("utxo not fround in wallet")
 			return nil, errors.New("Unspendable utxo found")
 		}
 
-		script, err := getScriptFromAddress(address)
+		script, err := getScriptFromAddress(address, param)
 		if err != nil {
 			return nil, err
 		}
 
-		pos := strings.IndexByte(val.(string), '/')
-		branch, _ := strconv.ParseInt(val.(string)[0:pos], 10, 32)
-		addrId, _ := strconv.ParseInt(val.(string)[pos+1:], 10, 32)
+		pos := strings.IndexByte(val, '/')
+		branch, _ := strconv.ParseInt(val[0:pos], 10, 32)
+		addrId, _ := strconv.ParseInt(val[pos+1:], 10, 32)
 		if branch != 1 {
 			log.Println("input must only come from inner address")
 			return nil, errors.New("invalid input")
 		}
-		privKey, _ := GetPrivateKey(xpriv, int(branch), int(addrId))
+		privKey, _ := util.GetPrivateKey(xpriv, int(branch), int(addrId))
 		//log.Println("privkey:", hex.EncodeToString(privKey.ToECDSA().D.Bytes()))
 		sig, err := txscript.SignatureScript(
 			signedTx,            // The tx to be signed.
@@ -208,10 +219,10 @@ func DumpMsgTxInput(tx *wire.MsgTx) {
 	}
 }
 
-func DumpMsgTxOutput(tx *wire.MsgTx) {
+func DumpMsgTxOutput(tx *wire.MsgTx, param *chaincfg.Params) {
 	for i := 0; i < len(tx.TxOut); i++ {
 		_, addrSet, _, err := txscript.ExtractPkScriptAddrs(
-			tx.TxOut[i].PkScript, &DSCMainNetParams)
+			tx.TxOut[i].PkScript, param)
 		if err == nil {
 			log.Println(addrSet[0].EncodeAddress(), tx.TxOut[i].Value)
 		} else {
@@ -220,16 +231,17 @@ func DumpMsgTxOutput(tx *wire.MsgTx) {
 	}
 }
 
-func PrepareTrezorSign(config *Config, tx *wire.MsgTx) (string, error) {
+func PrepareTrezorSign(config *conf.Config, tx *wire.MsgTx) (string, error) {
 	var trezorTx TrezorTx
 	client, err := ConnectRPC(config)
+	param := util.GetParamByName(config.ChainName)
 
 	if err != nil {
 		return "", err
 	}
 	defer client.Shutdown()
 
-	trezorTx.Coin = "dsc"
+	trezorTx.Coin = config.ChainName
 	// we have no blockbook instance installed
 	trezorTx.Push = false
 
@@ -245,13 +257,13 @@ func PrepareTrezorSign(config *Config, tx *wire.MsgTx) (string, error) {
 			return "", err
 		}
 
-		val, _ := addrs.Load(out.Address)
-		pos := strings.IndexByte(val.(string), '/')
-		branch, _ := strconv.ParseInt(val.(string)[0:pos], 10, 32)
-		addrId, _ := strconv.ParseInt(val.(string)[pos+1:], 10, 32)
+		val, _ := util.LoadAddrPath(out.Address)
+		pos := strings.IndexByte(val, '/')
+		branch, _ := strconv.ParseInt(val[0:pos], 10, 32)
+		addrId, _ := strconv.ParseInt(val[pos+1:], 10, 32)
 
 		trezorTx.Inputs[i].AddressN[0] = 44 | 0x80000000
-		trezorTx.Inputs[i].AddressN[1] = 0 | 0x80000000 // FIXME: must be 1208
+		trezorTx.Inputs[i].AddressN[1] = 1208 | 0x80000000
 		trezorTx.Inputs[i].AddressN[2] = 0 | 0x80000000 //account 0
 		trezorTx.Inputs[i].AddressN[3] = uint32(branch)
 		trezorTx.Inputs[i].AddressN[4] = uint32(addrId)
@@ -283,7 +295,7 @@ func PrepareTrezorSign(config *Config, tx *wire.MsgTx) (string, error) {
 
 	for i := 0; i < len(tx.TxOut); i++ {
 		_, addrSet, _, err := txscript.ExtractPkScriptAddrs(
-			tx.TxOut[i].PkScript, &DSCMainNetParams)
+			tx.TxOut[i].PkScript, param)
 		if err != nil {
 			log.Println("parse pkscript err:", err, i)
 			return "", err
