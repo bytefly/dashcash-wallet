@@ -134,6 +134,11 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName str
 			continue
 		}
 
+		if len(addrSet) == 0 {
+			log.Println("cannot get address", hash, i)
+			continue
+		}
+
 		addrStr := addrSet[0].EncodeAddress()
 		_, ok := util.LoadAddrPath(addrStr)
 		if ok {
@@ -284,7 +289,7 @@ func ParseMempoolTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainN
 		}
 		tx, err := client.GetRawTransaction(&prevHash)
 		if err != nil {
-			log.Println("get transaction err:", err, prevHash.String())
+			log.Println("get transaction err:", err, hash, i, prevHash.String())
 			continue
 		}
 		value := tx.MsgTx().TxOut[prevIndex].Value

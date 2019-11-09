@@ -157,7 +157,7 @@ func Notifier(config *conf.Config, ch <-chan NotifyMessage) {
 		switch message.TxType {
 		case 0:
 			//small btc deposit less then 0.001 is ignored
-			if symbol == "BTC" && message.Amount.Uint64() > 100000 {
+			if symbol == "BTC" && message.Amount.Uint64() < 100000 {
 				break
 			}
 			log.Printf("%s %s tokens deposit to %s, tx: %s\n", symbol, amount, addr, message.TxHash)

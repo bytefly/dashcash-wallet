@@ -30,9 +30,9 @@ const (
 	TX_MAX_SIZE = 100000
 )
 
-func openDb(chainName string) error {
+func openDb(dbDir string) error {
 	var err error
-	db, err = badger.Open(badger.DefaultOptions("/tmp/badger/" + chainName))
+	db, err = badger.Open(badger.DefaultOptions(dbDir))
 	return err
 }
 
@@ -245,7 +245,7 @@ func minOutputAmount(feePerKb uint32) int64 {
 	return TX_MIN_OUTPUT_AMOUNT
 }
 
-func CreateTxForOutputs(feePerKb uint32, outputs []TxOut, changeAddress string, param *chaincfg.Params, useInnerUtxo bool) (*wire.MsgTx, bool) {
+func CreateTxForOutputs(feePerKb uint32, sender string, outputs []TxOut, changeAddress string, param *chaincfg.Params, useInnerUtxo bool) (*wire.MsgTx, bool) {
 	var (
 		totalBalance int64
 		balance      int64
@@ -266,10 +266,6 @@ func CreateTxForOutputs(feePerKb uint32, outputs []TxOut, changeAddress string, 
 		return nil, false
 	}
 
-	for _, o := range utxos {
-		totalBalance += o.Value
-	}
-
 	for i := 0; i < len(outputs); i++ {
 		amount += outputs[i].Amount
 	}
@@ -280,6 +276,22 @@ func CreateTxForOutputs(feePerKb uint32, outputs []TxOut, changeAddress string, 
 		return nil, false
 	}
 
+	var usedUtxo Utxo
+	inputs := make([]TxInput, 0)
+	for _, o := range utxos {
+		totalBalance += o.Value
+		if len(inputs) == 0 && o.Address == sender {
+			usedUtxo = o
+			balance += o.Value
+			utxoHash, _ := chainhash.NewHashFromStr(o.Hash)
+			point := wire.OutPoint{Hash: *utxoHash, Index: o.Index}
+			tx.AddTxIn(wire.NewTxIn(&point, nil, nil))
+
+			input := TxInput{Hash: o.Hash, Index: o.Index, Address: o.Address}
+			inputs = append(inputs, input)
+		}
+	}
+
 	minAmount := minOutputAmount(feePerKb)
 	feeAmount := txFee(feePerKb, uint32(tx.SerializeSize())+TX_OUTPUT_SIZE)
 
@@ -288,35 +300,17 @@ func CreateTxForOutputs(feePerKb uint32, outputs []TxOut, changeAddress string, 
 	// TODO: use up UTXOs received from any of the output scripts that this transaction sends funds to, to mitigate an
 	//       attacker double spending and requesting a refund
 	for i := 0; i < len(utxos); i++ {
+		//jump the utxo used before
+		if utxos[i] == usedUtxo {
+			continue
+		}
+
 		utxoHash, _ := chainhash.NewHashFromStr(utxos[i].Hash)
 		point := wire.OutPoint{Hash: *utxoHash, Index: utxos[i].Index}
 		tx.AddTxIn(wire.NewTxIn(&point, nil, nil))
 
 		if tx.SerializeSize()+TX_OUTPUT_SIZE > TX_MAX_SIZE { // transaction size-in-bytes too large
 			tx = nil
-
-			// check for sufficient total funds before building a smaller transaction
-			if totalBalance < amount+txFee(feePerKb, uint32(10+len(utxos)*TX_INPUT_SIZE+
-				(len(outputs)+1)*TX_OUTPUT_SIZE+cpfpSize)) {
-				break
-			}
-
-			if outputs[len(outputs)-1].Amount > amount+feeAmount+minAmount-balance {
-				newOutputs := make([]TxOut, 0)
-
-				for j := 0; j < len(outputs); j++ {
-					newOutputs = append(newOutputs, outputs[j])
-				}
-
-				newOutputs[len(newOutputs)-1].Amount -= amount + feeAmount - balance // reduce last output amount
-				tx, _ = CreateTxForOutputs(feePerKb, newOutputs, changeAddress, param, useInnerUtxo)
-			} else {
-				tx, _ = CreateTxForOutputs(feePerKb, outputs[0:len(outputs)-1], changeAddress, param, useInnerUtxo) // remove last output
-			}
-
-			balance = 0
-			amount = 0
-			feeAmount = 0
 			break
 		}
 
@@ -343,7 +337,7 @@ func CreateTxForOutputs(feePerKb uint32, outputs []TxOut, changeAddress string, 
 	if (tx != nil) && (len(outputs) < 1 || balance < amount+feeAmount) { // no outputs/insufficient funds
 		log.Println("no outputs/insufficient funds")
 		return nil, false
-	} else if (tx != nil) && balance-(amount+feeAmount) > minAmount { // add change output
+	} else if (tx != nil) && balance-(amount+feeAmount) >= minAmount { // add change output
 		if changeAddress == "" {
 			// if no change address pass in, use the first input address
 			out, err := GetUtxoByKey(tx.TxIn[0].PreviousOutPoint.Hash.String(), tx.TxIn[0].PreviousOutPoint.Index)

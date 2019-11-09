@@ -10,6 +10,7 @@ import (
 	"github.com/bytefly/dashcash-wallet/usdt"
 	"github.com/bytefly/dashcash-wallet/util"
 	"log"
+	"math/big"
 	"net/http"
 	"strconv"
 	"strings"
@@ -90,7 +91,7 @@ func SendCoinHandler(config *conf.Config) func(w http.ResponseWriter, r *http.Re
 
 		outputs := make([]TxOut, 1)
 		outputs[0] = TxOut{Address: to, Amount: amount}
-		tx, _ := CreateTxForOutputs(config.FeeRate, outputs, "", param, true)
+		tx, _ := CreateTxForOutputs(config.FeeRate, "", outputs, "", param, true)
 		if tx == nil {
 			RespondWithError(w, 500, "utxo out of balance")
 			return
@@ -164,7 +165,7 @@ func PrepareTrezorSignHandler(config *conf.Config) func(w http.ResponseWriter, r
 
 		outputs := make([]TxOut, 1)
 		outputs[0] = TxOut{Address: to, Amount: amount}
-		tx, hasChange := CreateTxForOutputs(config.FeeRate, outputs, changeAddress, param, false)
+		tx, hasChange := CreateTxForOutputs(config.FeeRate, "", outputs, changeAddress, param, false)
 		if tx == nil {
 			RespondWithError(w, 500, "utxo out of balance")
 			return
@@ -374,11 +375,10 @@ func SendOmniCoinHandler(config *conf.Config) func(w http.ResponseWriter, r *htt
 			return
 		}
 
-		//FIXME: should contain a sender input
 		outputs := make([]TxOut, 2)
 		outputs[0] = TxOut{Script: usdt.GetOmniUsdtScript(uint64(amount))}
 		outputs[1] = TxOut{Address: to, Amount: 546}
-		tx, _ := CreateTxForOutputs(config.FeeRate, outputs, "", param, true)
+		tx, _ := CreateTxForOutputs(config.FeeRate, from, outputs, "", param, true)
 		if tx == nil {
 			RespondWithError(w, 500, "utxo out of balance")
 			return
@@ -397,5 +397,137 @@ func SendOmniCoinHandler(config *conf.Config) func(w http.ResponseWriter, r *htt
 			return
 		}
 		Respond(w, 0, map[string]string{"txhash": hash})
+	}
+}
+
+func PrepareOmniTrezorSignHandler(config *conf.Config) func(w http.ResponseWriter, r *http.Request) {
+	param := util.GetParamByName(config.ChainName)
+	return func(w http.ResponseWriter, r *http.Request) {
+		m.Lock()
+		defer m.Unlock()
+
+		if !strings.EqualFold(config.ChainName, "btc") {
+			RespondWithError(w, 400, "omni coin not supported in the chain")
+			return
+		}
+
+		err := r.ParseForm()
+		if err != nil {
+			RespondWithError(w, 400, "Could not parse parameters")
+			return
+		}
+
+		token := r.Form.Get("token")
+		from := r.Form.Get("from")
+		to := r.Form.Get("to")
+		amountStr := r.Form.Get("amount")
+
+		if token != "USDT" {
+			log.Println("only USDT support now")
+			RespondWithError(w, 400, "invalid token")
+			return
+		}
+		// use the first inner address as sender in default
+		if from == "" {
+			log.Println("missing from")
+			RespondWithError(w, 400, "missing from")
+			return
+		} else if !util.VerifyAddress(config.ChainName, from) {
+			log.Println("Invalid from address:", from)
+			RespondWithError(w, 400, "Invalid from address")
+			return
+		}
+		if to != "" && !util.VerifyAddress(config.ChainName, to) {
+			log.Println("Invalid to address:", to)
+			RespondWithError(w, 400, "Invalid to address")
+			return
+		}
+
+		log.Println("preparing send", token, "from", from, "to", to, "amount:", amountStr)
+
+		if amountStr == "" {
+			log.Println("amount is missing")
+			RespondWithError(w, 400, "Missing amount field")
+			return
+		}
+
+		amount, err := strconv.ParseInt(util.RightShift(amountStr, 8), 10, 64)
+		if err != nil {
+			RespondWithError(w, 400, "invalid amount")
+			return
+		}
+
+		if to == "" {
+			log.Println("to is missing, use inner first address instead")
+			to, err = util.GetNewChangeAddr(config, 0)
+			if err != nil {
+				RespondWithError(w, 500, fmt.Sprintf("get change addr err:%v", err))
+				return
+			}
+		}
+
+		changeAddress, err := util.GetNewChangeAddr(config, config.InIndex)
+		if err != nil {
+			log.Println("get change address err:", err)
+			return
+		}
+
+		outputs := make([]TxOut, 1)
+		outputs[0] = TxOut{Address: to, Amount: amount}
+		tx, hasChange := CreateTxForOutputs(config.FeeRate, from, outputs, changeAddress, param, false)
+		if tx == nil {
+			RespondWithError(w, 500, "utxo out of balance")
+			return
+		}
+
+		trezorTx, err := PrepareTrezorSign(config, tx)
+		if err != nil {
+			RespondWithError(w, 500, fmt.Sprintf("prepare trezor sign err:%v", err))
+			return
+		}
+		if hasChange {
+			util.StoreAddrPath(changeAddress, fmt.Sprintf("1/%d", config.InIndex))
+			config.InIndex++
+		}
+		Respond(w, 0, map[string]string{"trezorTx": trezorTx})
+	}
+}
+
+func GetOmniBalanceHandler(config *conf.Config) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !strings.EqualFold(config.ChainName, "btc") {
+			RespondWithError(w, 400, "omni coin not supported in the chain")
+			return
+		}
+
+		address := r.URL.Query().Get("address")
+		token := r.URL.Query().Get("token")
+
+		log.Println("get omni balance of", address, token)
+		if address == "" {
+			RespondWithError(w, 400, "missing address")
+			return
+		}
+		if !util.VerifyAddress(config.ChainName, address) {
+			log.Println("Invalid address:", address)
+			RespondWithError(w, 400, "Invalid address")
+			return
+		}
+
+		if token == "" {
+			token = "USDT"
+		}
+		pendingAmount, err := usdt.GetOMNIPendingAmount(config, address, usdt.OMNIToken)
+		if err != nil {
+			RespondWithError(w, 400, "get pending transactions error")
+			return
+		}
+		balance, err := usdt.GetUSDTBalance(config, address)
+		if err != nil {
+			RespondWithError(w, 400, "get usdt balance error")
+			return
+		}
+
+		Respond(w, 0, map[string]string{"balance": util.LeftShift(big.NewInt(balance-pendingAmount).String(), 8)})
 	}
 }

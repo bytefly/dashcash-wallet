@@ -86,7 +86,7 @@ func main() {
 	util.AddressInit(config.Xpub, 0, int(config.Index), param)
 	util.AddressInit(config.Xpub, 1, int(config.InIndex), param)
 
-	err = openDb(config.ChainName)
+	err = openDb(config.DBDir)
 	if err != nil {
 		log.Println("open db err:", err)
 		return
@@ -100,6 +100,8 @@ func main() {
 	r.HandleFunc("/sendSignedTx", SendSignedTxHandler(config))
 	r.HandleFunc("/getInnerBalance", GetInnerBalanceHandler(config))
 	r.HandleFunc("/sendOmniCoin", SendOmniCoinHandler(config))
+	r.HandleFunc("/prepareOmniTrezorSign", PrepareOmniTrezorSignHandler(config))
+	r.HandleFunc("/getOmniBalance", GetOmniBalanceHandler(config))
 
 	r.HandleFunc("/dumpUtxo", DumpUtxoHandler(config))
 

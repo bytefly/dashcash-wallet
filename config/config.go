@@ -23,6 +23,7 @@ type Config struct {
 	FeeRate      uint32
 	RegistryAddr string
 	ZmqURL       string
+	DBDir        string
 }
 
 var cfg *ini.File
@@ -53,6 +54,7 @@ func LoadConfiguration(filepath string) (*Config, error) {
 	config.FeeRate = uint32(cfg.Section("extapi").Key("feerate").MustInt(0))
 	config.RegistryAddr = cfg.Section("extapi").Key("registry").String()
 	config.ZmqURL = cfg.Section("extapi").Key("zmq").String()
+	config.DBDir = cfg.Section("extapi").Key("dbDir").String()
 	return config, nil
 }
 
