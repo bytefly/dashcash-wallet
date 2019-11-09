@@ -318,6 +318,11 @@ func ParseMempoolTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainN
 			continue
 		}
 
+		if len(addrSet) == 0 {
+			log.Println("cannot get address", hash, i)
+			continue
+		}
+
 		addrStr := addrSet[0].EncodeAddress()
 		_, ok := util.LoadAddrPath(addrStr)
 		if ok {
