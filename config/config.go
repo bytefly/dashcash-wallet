@@ -61,6 +61,6 @@ func LoadConfiguration(filepath string) (*Config, error) {
 func SaveConfiguration(config *Config, filepath string) {
 	cfg.Section("account").Key("index").SetValue(strconv.FormatInt(int64(config.Index), 10))
 	cfg.Section("account").Key("change_index").SetValue(strconv.FormatInt(int64(config.InIndex), 10))
-	cfg.Section("extapi").Key("lastBlock").SetValue(strconv.FormatUint(config.LastBlock, 10))
+	cfg.Section("extapi").Key("lastBlock").SetValue(strconv.FormatUint(config.LastBlock-3, 10))
 	cfg.SaveTo(filepath)
 }
