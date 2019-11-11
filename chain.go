@@ -311,6 +311,10 @@ func ParseMempoolTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainN
 	}
 
 	for i := 0; i < len(msgtx.TxOut); i++ {
+		if txscript.GetScriptClass(msgtx.TxOut[i].PkScript) == txscript.NullDataTy {
+			continue
+		}
+
 		_, addrSet, _, err := txscript.ExtractPkScriptAddrs(
 			msgtx.TxOut[i].PkScript, param)
 		if err != nil {
