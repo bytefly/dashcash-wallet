@@ -107,7 +107,6 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName str
 		if ok {
 			inputAddrs = append(inputAddrs, addrStr)
 			removeUtxo(prevHash.String(), prevIndex, addrStr, value)
-			log.Println("remove utxo:", prevHash.String(), prevIndex, addrStr)
 		} else {
 			inputAddrs2 = append(inputAddrs2, addrStr)
 		}
@@ -144,7 +143,6 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName str
 		if ok {
 			outputAddrs = append(outputAddrs, addrStr)
 			createUtxo(hash, uint32(i), addrStr, msgtx.TxOut[i].Value)
-			log.Println("add utxo:", hash, i, addrStr)
 		} else {
 			outputAddrs2 = append(outputAddrs2, addrStr)
 		}
@@ -273,11 +271,17 @@ func SendTransaction(config *conf.Config, tx *wire.MsgTx) (string, error) {
 	return hash, nil
 }
 
-func ParseMempoolTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName string) (err error) {
+func ParseMempoolTransaction(config *conf.Config, msgtx *wire.MsgTx, chainName string) (err error) {
 	param := util.GetParamByName(chainName)
 	if msgtx == nil {
 		return fmt.Errorf("Transaction is nil: Can't parse.")
 	}
+
+	client, err := ConnectRPC(config)
+	if err != nil {
+		return err
+	}
+	defer client.Shutdown()
 
 	hash := msgtx.TxHash().String()
 	for i := 0; i < len(msgtx.TxIn); i++ {
@@ -306,7 +310,6 @@ func ParseMempoolTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainN
 		_, ok := util.LoadAddrPath(addrStr)
 		if ok {
 			removeUtxo(prevHash.String(), prevIndex, addrStr, value)
-			log.Println("remove utxo:", prevHash.String(), prevIndex, addrStr)
 		}
 	}
 
@@ -331,7 +334,6 @@ func ParseMempoolTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainN
 		_, ok := util.LoadAddrPath(addrStr)
 		if ok {
 			createUtxo(hash, uint32(i), addrStr, msgtx.TxOut[i].Value)
-			log.Println("add utxo:", hash, i, addrStr)
 		}
 	}
 

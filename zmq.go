@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcd/wire"
+	conf "github.com/bytefly/dashcash-wallet/config"
 	zmq "github.com/pebbe/zmq4"
 
 	"bytes"
@@ -22,11 +22,8 @@ func zmqInit(url string) (err error) {
 		log.Println("new zmq subscript err:", err)
 		return
 	}
-	err = subSocket.SetSubscribe("rawtx")
-	if err != nil {
-		log.Println("set zmq subscribe err:", err)
-		return
-	}
+	subSocket.SetSubscribe("rawtx")
+	subSocket.SetSubscribe("hashblock")
 
 	err = subSocket.Connect(url)
 	if err != nil {
@@ -40,7 +37,7 @@ func zmqInit(url string) (err error) {
 	return
 }
 
-func zmqProcess(client *rpcclient.Client, chainName string) error {
+func zmqProcess(config *conf.Config, chainName string, ch chan<- ObjMessage) error {
 	if poller == nil || subSocket == nil {
 		return errors.New("zmq not init yet")
 	}
@@ -53,7 +50,7 @@ func zmqProcess(client *rpcclient.Client, chainName string) error {
 
 	for _, s := range sockets {
 		if s.Socket == subSocket {
-			msg, err := subSocket.RecvBytes(0)
+			cmd, err := subSocket.RecvBytes(0)
 			if err != nil {
 				log.Println("zmq recv err:", err)
 				break
@@ -69,17 +66,24 @@ func zmqProcess(client *rpcclient.Client, chainName string) error {
 					break
 				}
 
-				msg, err = subSocket.RecvBytes(0)
+				msg, err := subSocket.RecvBytes(0)
 				if err != nil {
 					log.Println("zmq recv err:", err)
 					break
 				}
 				if len(msg) != 4 {
-					var tx wire.MsgTx
-					rbuf := bytes.NewReader(msg)
-					err = tx.Deserialize(rbuf)
 					if err == nil {
-						ParseMempoolTransaction(client, &tx, chainName)
+						switch string(cmd) {
+						case "rawtx":
+							var tx wire.MsgTx
+							rbuf := bytes.NewReader(msg)
+							err = tx.Deserialize(rbuf)
+							if err == nil {
+								ParseMempoolTransaction(config, &tx, chainName)
+							}
+						case "hashblock":
+							GetNewerBlock(config, ch)
+						}
 					}
 				} else { //4 bytes nSequence
 					//log.Println(binary.LittleEndian.Uint32(msg))

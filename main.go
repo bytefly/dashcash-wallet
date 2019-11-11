@@ -75,12 +75,6 @@ func main() {
 		return
 	}
 
-	client, err := ConnectRPC(config)
-	if err != nil {
-		log.Println("connect to RPC server err:", err)
-		return
-	}
-
 	last_id = config.LastBlock
 
 	util.AddressInit(config.Xpub, 0, int(config.Index), param)
@@ -108,9 +102,10 @@ func main() {
 	r.NotFoundHandler = http.HandlerFunc(NotFoundHandler)
 	log.Println("last block: ", last_id)
 
-	ch := make(chan NotifyMessage, 1024)
-	go Notifier(config, ch)
-	go Subscriber(config, ch, last_id)
+	ch1 := make(chan NotifyMessage, 1024)
+	ch2 := make(chan ObjMessage, 1024)
+	go Notifier(config, ch1)
+	go Listener(config, ch2, ch1, last_id)
 
 	host := ":" + strconv.FormatInt(int64(config.Port), 10)
 	log.Printf("Starting web server at %s ...\n", host)
@@ -146,7 +141,7 @@ func main() {
 			break
 		}
 
-		err = zmqProcess(client, config.ChainName)
+		err = zmqProcess(config, config.ChainName, ch2)
 		if err != nil {
 			zmqRestart(config.ZmqURL)
 		}
@@ -155,7 +150,6 @@ func main() {
 	zmqClose(config.ZmqURL)
 	server.Close()
 	closeDb()
-	client.Shutdown()
 	conf.SaveConfiguration(config, fConfigFile)
 	log.Println("bye")
 }

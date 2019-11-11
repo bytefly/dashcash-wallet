@@ -49,6 +49,7 @@ func createUtxo(hash string, index uint32, address string, value int64) error {
 
 		_, err := txn.Get([]byte(key))
 		if err == badger.ErrKeyNotFound {
+			log.Println("add utxo:", hash, index, address)
 			// Use the transaction...
 			err = txn.Set([]byte(key), []byte(val))
 			return err
@@ -63,7 +64,12 @@ func createUtxo(hash string, index uint32, address string, value int64) error {
 func removeUtxo(hash string, index uint32, address string, value int64) error {
 	err := db.Update(func(txn *badger.Txn) error {
 		key := fmt.Sprintf("%s/%d", hash, index)
-		err := txn.Delete([]byte(key))
+		_, err := txn.Get([]byte(key))
+		if err == nil {
+			log.Println("remove utxo:", hash, index, address)
+			err = txn.Delete([]byte(key))
+			return err
+		}
 		return err
 	})
 

@@ -5,7 +5,6 @@ import (
 	"github.com/bytefly/dashcash-wallet/util"
 	"log"
 	"math/big"
-	"time"
 )
 
 type WsEvent struct {
@@ -49,6 +48,7 @@ type ResponseMessage struct {
 
 const (
 	TYPE_BLOCK_HASH = iota
+	MIN_BTC_AMOUNT  = 100000
 )
 
 type ObjMessage struct {
@@ -56,6 +56,8 @@ type ObjMessage struct {
 	Hash   string
 	Number *big.Int
 }
+
+var blkPool = make(map[uint64][]NotifyMessage)
 
 func GetNewerBlock(config *conf.Config, ch chan<- ObjMessage) error {
 	client, err := ConnectRPC(config)
@@ -91,7 +93,7 @@ func Listener(config *conf.Config, ch <-chan ObjMessage, notifyChannel chan<- No
 
 			stop := new(big.Int)
 			stop.Sub(message.Number, big.NewInt(3))
-			for 0 != last.Cmp(stop) {
+			for last.Cmp(message.Number) <= 0 {
 				//log.Printf("Recovery: Doing block %s", last.Text(10))
 				txns, err := ReadBlock(client, last, config.ChainName)
 				if err != nil {
@@ -99,13 +101,49 @@ func Listener(config *conf.Config, ch <-chan ObjMessage, notifyChannel chan<- No
 					break
 				}
 
-				for _, txn := range txns {
-					notifyChannel <- txn
-				}
+				if last.Cmp(stop) < 0 {
+					for _, txn := range txns {
+						notifyChannel <- txn
+					}
 
-				notifyChannel <- NotifyMessage{
-					MessageType: NOTIFY_TYPE_ADMIN,
-					Amount:      last,
+					notifyChannel <- NotifyMessage{
+						MessageType: NOTIFY_TYPE_ADMIN,
+						Amount:      last,
+					}
+				} else {
+					for _, txn := range txns {
+						if txn.MessageType == NOTIFY_TYPE_TX {
+							if txn.Amount.String() != "0" && txn.Coin == "BTC" {
+								if txn.Amount.Uint64() < MIN_BTC_AMOUNT {
+									continue
+								}
+							}
+							//remove non wallet txn
+							log.Println("new tx is confirmed:", txn.TxHash)
+						}
+					}
+
+					//put it in map
+					if len(txns) > 0 {
+						blkPool[last.Uint64()] = txns
+						log.Println("add txs to", last.Uint64(), "txs size:", len(txns))
+					}
+					//scan and broadcast 3 confirms
+					txns, ok := blkPool[last.Uint64()-3]
+					if ok {
+						for _, txn := range txns {
+							notifyChannel <- txn
+						}
+
+						notifyChannel <- NotifyMessage{
+							MessageType: NOTIFY_TYPE_ADMIN,
+							Amount:      new(big.Int).Sub(last, big.NewInt(3)),
+						}
+
+						// delete unconfirmed height txs map
+						delete(blkPool, last.Uint64()-3)
+						log.Println("delete txs in block", last.Uint64()-3)
+					}
 				}
 
 				last.SetUint64(last.Uint64() + 1)
@@ -114,6 +152,7 @@ func Listener(config *conf.Config, ch <-chan ObjMessage, notifyChannel chan<- No
 			// We set last_id a 0. We don't want this process to restart.
 			//log.Printf("Recovery is over: Done up to block %s", last.Text(10))
 			last_id = last.Uint64()
+			config.LastBlock = last_id
 		}
 	}
 }
@@ -132,7 +171,6 @@ func Notifier(config *conf.Config, ch <-chan NotifyMessage) {
 		}
 
 		if message.MessageType == NOTIFY_TYPE_ADMIN {
-			config.LastBlock = message.Amount.Uint64()
 			continue
 		}
 
@@ -157,7 +195,7 @@ func Notifier(config *conf.Config, ch <-chan NotifyMessage) {
 		switch message.TxType {
 		case 0:
 			//small btc deposit less then 0.001 is ignored
-			if symbol == "BTC" && message.Amount.Uint64() < 100000 {
+			if symbol == "BTC" && message.Amount.Uint64() < MIN_BTC_AMOUNT {
 				break
 			}
 			log.Printf("%s %s tokens deposit to %s, tx: %s\n", symbol, amount, addr, message.TxHash)
@@ -165,27 +203,6 @@ func Notifier(config *conf.Config, ch <-chan NotifyMessage) {
 		case 1:
 			log.Printf("%s %s tokens withdraw to %s, tx: %s fee: %s\n", symbol, amount, addr, message.TxHash, fee)
 			storeTokenWithdrawTx(config, symbol, message.TxHash, addr, amount, fee)
-		}
-	}
-}
-
-func Subscriber(config *conf.Config, notifyChannel chan<- NotifyMessage, last_id uint64) {
-	ch := make(chan ObjMessage, 1024)
-
-	go Listener(config, ch, notifyChannel, last_id)
-
-	for {
-		ts_startup := time.Now()
-		err := GetNewerBlock(config, ch)
-		if err != nil {
-			log.Println(err)
-		}
-
-		elapsed := time.Now().Sub(ts_startup)
-
-		if elapsed < time.Second*5 {
-			// Wait a few seconds before retrying
-			time.Sleep(time.Second * 5)
 		}
 	}
 }
