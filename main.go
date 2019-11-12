@@ -123,6 +123,8 @@ func main() {
 	go server.Serve(listener)
 
 	zmqInit(config.ZmqURL)
+	//launch the signal once avoiding waiting for a long time
+	GetNewerBlock(config, ch2)
 
 	stop := 0
 	for {
