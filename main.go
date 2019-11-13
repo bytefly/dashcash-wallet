@@ -52,7 +52,9 @@ func main() {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 	ticker := time.NewTicker(time.Second)
+	newBlockTicker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
+	defer newBlockTicker.Stop()
 
 	var last_id uint64
 
@@ -137,6 +139,8 @@ func main() {
 			//http.StopHttpService(serviceObj)
 			stop = 1
 			break
+		case <-newBlockTicker.C:
+			GetNewerBlock(config, ch2)
 		}
 
 		if stop == 1 {
