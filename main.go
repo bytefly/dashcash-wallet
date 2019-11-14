@@ -113,8 +113,8 @@ func main() {
 	log.Printf("Starting web server at %s ...\n", host)
 
 	server := &http.Server{
-		ReadTimeout:  time.Duration(2000) * time.Millisecond,
-		WriteTimeout: time.Duration(2000) * time.Millisecond,
+		ReadTimeout:  time.Duration(30) * time.Second,
+		WriteTimeout: time.Duration(30) * time.Second,
 		Handler:      r,
 	}
 
