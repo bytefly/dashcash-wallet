@@ -338,6 +338,11 @@ func SendOmniCoinHandler(config *conf.Config) func(w http.ResponseWriter, r *htt
 			RespondWithError(w, 400, "Invalid to address")
 			return
 		}
+		if util.IsNativeSegWitAddress(config.ChainName, to) {
+			log.Println("native segwit address not supported:", to)
+			RespondWithError(w, 400, "cannot be segwit address")
+			return
+		}
 
 		log.Println("send", token, "to", to, "amount:", amountStr)
 
@@ -437,10 +442,17 @@ func PrepareOmniTrezorSignHandler(config *conf.Config) func(w http.ResponseWrite
 			RespondWithError(w, 400, "Invalid from address")
 			return
 		}
-		if to != "" && !util.VerifyAddress(config.ChainName, to) {
-			log.Println("Invalid to address:", to)
-			RespondWithError(w, 400, "Invalid to address")
-			return
+		if to != "" {
+			if !util.VerifyAddress(config.ChainName, to) {
+				log.Println("Invalid to address:", to)
+				RespondWithError(w, 400, "Invalid to address")
+				return
+			}
+			if util.IsNativeSegWitAddress(config.ChainName, to) {
+				log.Println("native segwit address not supported:", to)
+				RespondWithError(w, 400, "cannot be segwit address")
+				return
+			}
 		}
 
 		log.Println("preparing send", token, "from", from, "to", to, "amount:", amountStr)
