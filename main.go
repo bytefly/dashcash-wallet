@@ -140,6 +140,7 @@ func main() {
 			stop = 1
 			break
 		case <-newBlockTicker.C:
+			conf.SaveConfiguration(config, fConfigFile)
 			GetNewerBlock(config, ch2)
 		}
 

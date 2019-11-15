@@ -194,7 +194,7 @@ func GetAddrHandler(config *conf.Config) func(w http.ResponseWriter, r *http.Req
 			RespondWithError(w, 500, "Couldn't create eth address")
 			return
 		}
-		log.Println("send addr:", addr)
+		log.Println("send addr:", addr, config.Index)
 		util.StoreAddrPath(addr, fmt.Sprintf("0/%d", config.Index))
 		config.Index++
 
