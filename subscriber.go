@@ -147,12 +147,12 @@ func Listener(config *conf.Config, ch <-chan ObjMessage, notifyChannel chan<- No
 				}
 
 				last.SetUint64(last.Uint64() + 1)
+				config.LastBlock = last.Uint64()
 			}
 
 			// We set last_id a 0. We don't want this process to restart.
 			//log.Printf("Recovery is over: Done up to block %s", last.Text(10))
 			last_id = last.Uint64()
-			config.LastBlock = last_id
 		}
 	}
 }
