@@ -472,8 +472,9 @@ func PrepareOmniTrezorSignHandler(config *conf.Config) func(w http.ResponseWrite
 			return
 		}
 
-		outputs := make([]TxOut, 1)
-		outputs[0] = TxOut{Address: to, Amount: amount}
+		outputs := make([]TxOut, 2)
+		outputs[0] = TxOut{Script: usdt.GetOmniUsdtScript(uint64(amount))}
+		outputs[1] = TxOut{Address: to, 546}
 		tx, hasChange := CreateTxForOutputs(config.FeeRate, from, outputs, changeAddress, param, false)
 		if tx == nil {
 			RespondWithError(w, 500, "utxo out of balance")
