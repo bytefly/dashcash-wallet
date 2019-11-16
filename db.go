@@ -257,17 +257,16 @@ func CreateTxForOutputs(feePerKb uint32, sender string, outputs []TxOut, changeA
 		balance      int64
 		cpfpSize     int
 		amount       int64
-		branch       uint32
+		utxos        []Utxo
+		err          error
 	)
 
 	// caching all utxos may be better
 	if useInnerUtxo {
-		branch = 1
+		utxos, err = GetAllUtxoByBranch(1)
 	} else {
-		branch = 0
+		utxos, err = GetAllUtxo("")
 	}
-
-	utxos, err := GetAllUtxoByBranch(branch)
 	if err != nil || len(utxos) == 0 {
 		return nil, false
 	}
