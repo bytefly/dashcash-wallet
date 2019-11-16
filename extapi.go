@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	CHAIN_ID = 4
+	CHAIN_ID = 1
 )
 
 func storeTokenDepositTx(config *conf.Config, token string, hash string, addr string, amount string) {
