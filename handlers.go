@@ -91,7 +91,7 @@ func SendCoinHandler(config *conf.Config) func(w http.ResponseWriter, r *http.Re
 
 		outputs := make([]TxOut, 1)
 		outputs[0] = TxOut{Address: to, Amount: amount}
-		tx, _ := CreateTxForOutputs(config.FeeRate, "", outputs, "", param, true)
+		tx, _ := CreateTxForOutputs(config.FeeRate, "", outputs, "", param, true, false)
 		if tx == nil {
 			RespondWithError(w, 500, "utxo out of balance")
 			return
@@ -165,7 +165,7 @@ func PrepareTrezorSignHandler(config *conf.Config) func(w http.ResponseWriter, r
 
 		outputs := make([]TxOut, 1)
 		outputs[0] = TxOut{Address: to, Amount: amount}
-		tx, hasChange := CreateTxForOutputs(config.FeeRate, "", outputs, changeAddress, param, false)
+		tx, hasChange := CreateTxForOutputs(config.FeeRate, "", outputs, changeAddress, param, false, false)
 		if tx == nil {
 			RespondWithError(w, 500, "utxo out of balance")
 			return
@@ -206,7 +206,7 @@ func GetInnerBalanceHandler(config *conf.Config) func(w http.ResponseWriter, r *
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Println("get inner balance")
 
-		balance, err := getInnerBalance()
+		balance, err := getInnerBalance(false)
 		if err != nil {
 			log.Println("get inner balance fail:", err)
 			RespondWithError(w, 500, "get inner balance fail")
@@ -228,7 +228,7 @@ func GetBalanceHandler(config *conf.Config) func(w http.ResponseWriter, r *http.
 			return
 		}
 
-		balance, err := getBalance(address)
+		balance, err := getBalance(address, false)
 		if err != nil {
 			log.Println("get balance fail:", err)
 			RespondWithError(w, 500, "get balance fail")
@@ -282,7 +282,7 @@ func SendSignedTxHandler(config *conf.Config) func(w http.ResponseWriter, r *htt
 
 func DumpUtxoHandler(config *conf.Config) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		utxos, err := GetAllUtxo("")
+		utxos, err := GetAllUtxo("", true)
 		if err != nil {
 			log.Println("get all utxo err:", err)
 			RespondWithError(w, 500, "Error")
@@ -383,7 +383,7 @@ func SendOmniCoinHandler(config *conf.Config) func(w http.ResponseWriter, r *htt
 		outputs := make([]TxOut, 2)
 		outputs[0] = TxOut{Script: usdt.GetOmniUsdtScript(uint64(amount))}
 		outputs[1] = TxOut{Address: to, Amount: 546}
-		tx, _ := CreateTxForOutputs(config.FeeRate, from, outputs, "", param, true)
+		tx, _ := CreateTxForOutputs(config.FeeRate, from, outputs, "", param, true, true)
 		if tx == nil {
 			RespondWithError(w, 500, "utxo out of balance")
 			return
@@ -487,7 +487,7 @@ func PrepareOmniTrezorSignHandler(config *conf.Config) func(w http.ResponseWrite
 		outputs := make([]TxOut, 2)
 		outputs[0] = TxOut{Script: usdt.GetOmniUsdtScript(uint64(amount))}
 		outputs[1] = TxOut{Address: to, Amount: 546}
-		tx, hasChange := CreateTxForOutputs(config.FeeRate, from, outputs, changeAddress, param, false)
+		tx, hasChange := CreateTxForOutputs(config.FeeRate, from, outputs, changeAddress, param, false, true)
 		if tx == nil {
 			RespondWithError(w, 500, "utxo out of balance")
 			return

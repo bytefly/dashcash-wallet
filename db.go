@@ -76,8 +76,9 @@ func removeUtxo(hash string, index uint32, address string, value int64) error {
 	return err
 }
 
-func getBalance(address string) (*big.Int, error) {
+func getBalance(address string, useTinyUtxo bool) (*big.Int, error) {
 	balance := new(big.Int)
+	ignoreBalance := new(big.Int)
 	db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchSize = 10
@@ -92,7 +93,11 @@ func getBalance(address string) (*big.Int, error) {
 
 				if address == "" || address == string(addr) {
 					valInt, _ := new(big.Int).SetString(string(val), 10)
-					balance.Add(balance, valInt)
+					if useTinyUtxo || valInt.Uint64() > 546 {
+						balance.Add(balance, valInt)
+					} else {
+						ignoreBalance.Add(ignoreBalance, valInt)
+					}
 				}
 				return nil
 			})
@@ -101,11 +106,15 @@ func getBalance(address string) (*big.Int, error) {
 		return nil
 	})
 
+	if !useTinyUtxo {
+		log.Println("ignore tiny balance:", ignoreBalance.String())
+	}
 	return balance, nil
 }
 
-func getInnerBalance() (*big.Int, error) {
+func getInnerBalance(useTinyUtxo bool) (*big.Int, error) {
 	balance := new(big.Int)
+	ignoreBalance := new(big.Int)
 	db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchSize = 10
@@ -123,7 +132,11 @@ func getInnerBalance() (*big.Int, error) {
 					pos = strings.Index(path, "1/")
 					if pos == 0 {
 						valInt, _ := new(big.Int).SetString(string(val), 10)
-						balance.Add(balance, valInt)
+						if useTinyUtxo || valInt.Uint64() > 546 {
+							balance.Add(balance, valInt)
+						} else {
+							ignoreBalance.Add(ignoreBalance, valInt)
+						}
 					}
 				}
 				return nil
@@ -133,6 +146,9 @@ func getInnerBalance() (*big.Int, error) {
 		return nil
 	})
 
+	if !useTinyUtxo {
+		log.Println("ignore tiny balance:", ignoreBalance.String())
+	}
 	return balance, nil
 }
 
@@ -160,7 +176,7 @@ func GetUtxoByKey(hash string, index uint32) (*TxOut, error) {
 	return out, nil
 }
 
-func GetAllUtxo(address string) ([]Utxo, error) {
+func GetAllUtxo(address string, useTinyUtxo bool) ([]Utxo, error) {
 	utxos := make([]Utxo, 0)
 	db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
@@ -180,8 +196,10 @@ func GetAllUtxo(address string) ([]Utxo, error) {
 				val, _ := strconv.ParseInt(string(v[pos+1:]), 10, 64)
 
 				if address == "" || address == string(addr) {
-					utxo := Utxo{Hash: hash, Index: uint32(index), Address: addr, Value: val}
-					utxos = append(utxos, utxo)
+					if useTinyUtxo || val > 546 {
+						utxo := Utxo{Hash: hash, Index: uint32(index), Address: addr, Value: val}
+						utxos = append(utxos, utxo)
+					}
 				}
 				return nil
 			})
@@ -193,7 +211,7 @@ func GetAllUtxo(address string) ([]Utxo, error) {
 	return utxos, nil
 }
 
-func GetAllUtxoByBranch(branch uint32) ([]Utxo, error) {
+func GetAllUtxoByBranch(branch uint32, useTinyUtxo bool) ([]Utxo, error) {
 	utxos := make([]Utxo, 0)
 	db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
@@ -215,7 +233,7 @@ func GetAllUtxoByBranch(branch uint32) ([]Utxo, error) {
 				path, ok := util.LoadAddrPath(string(addr))
 				if ok {
 					pos = strings.Index(path, fmt.Sprintf("%d/", branch))
-					if pos == 0 {
+					if pos == 0 && (useTinyUtxo || val > 546) {
 						utxo := Utxo{Hash: hash, Index: uint32(index), Address: addr, Value: val}
 						utxos = append(utxos, utxo)
 					}
@@ -251,7 +269,7 @@ func minOutputAmount(feePerKb uint32) int64 {
 	return TX_MIN_OUTPUT_AMOUNT
 }
 
-func CreateTxForOutputs(feePerKb uint32, sender string, outputs []TxOut, changeAddress string, param *chaincfg.Params, useInnerUtxo bool) (*wire.MsgTx, bool) {
+func CreateTxForOutputs(feePerKb uint32, sender string, outputs []TxOut, changeAddress string, param *chaincfg.Params, useInnerUtxo, useTinyUtxo bool) (*wire.MsgTx, bool) {
 	var (
 		totalBalance int64
 		balance      int64
@@ -263,9 +281,9 @@ func CreateTxForOutputs(feePerKb uint32, sender string, outputs []TxOut, changeA
 
 	// caching all utxos may be better
 	if useInnerUtxo {
-		utxos, err = GetAllUtxoByBranch(1)
+		utxos, err = GetAllUtxoByBranch(1, useTinyUtxo)
 	} else {
-		utxos, err = GetAllUtxo("")
+		utxos, err = GetAllUtxo("", useTinyUtxo)
 	}
 	if err != nil || len(utxos) == 0 {
 		return nil, false
