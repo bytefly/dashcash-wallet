@@ -263,7 +263,7 @@ func PrepareTrezorSign(config *conf.Config, tx *wire.MsgTx) (string, error) {
 		addrId, _ := strconv.ParseInt(val[pos+1:], 10, 32)
 
 		trezorTx.Inputs[i].AddressN[0] = 44 | 0x80000000
-		trezorTx.Inputs[i].AddressN[1] = 1208 | 0x80000000
+		trezorTx.Inputs[i].AddressN[1] = param.HDCoinType | 0x80000000
 		trezorTx.Inputs[i].AddressN[2] = 0 | 0x80000000 //account 0
 		trezorTx.Inputs[i].AddressN[3] = uint32(branch)
 		trezorTx.Inputs[i].AddressN[4] = uint32(addrId)

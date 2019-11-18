@@ -28,6 +28,27 @@ var BTCMainNetParams = chaincfg.Params{
 	HDCoinType: 0,
 }
 
+var BTCTestNet3Params = chaincfg.Params{
+	Name: "testnet3",
+
+	// Human-readable part for Bech32 encoded segwit addresses, as defined in
+	// BIP 173.
+	Bech32HRPSegwit: "tb", // always tb for test net
+
+	// Address encoding magics
+	PubKeyHashAddrID: 0x6f, // starts with m or n
+	ScriptHashAddrID: 0xc4, // starts with 2
+	PrivateKeyID:     0xef, // starts with 9 (uncompressed) or c (compressed)
+
+	// BIP32 hierarchical deterministic extended key magics
+	HDPrivateKeyID: [4]byte{0x04, 0x35, 0x83, 0x94}, // starts with tprv
+	HDPublicKeyID:  [4]byte{0x04, 0x35, 0x87, 0xcf}, // starts with tpub
+
+	// BIP44 coin type used in the hierarchical deterministic path for
+	// address generation.
+	HDCoinType: 1,
+}
+
 var DSCMainNetParams = chaincfg.Params{
 	Name: "dsc",
 
@@ -46,7 +67,7 @@ var DSCMainNetParams = chaincfg.Params{
 
 	// BIP44 coin type used in the hierarchical deterministic path for
 	// address generation.
-	HDCoinType: 0,
+	HDCoinType: 1208,
 }
 
 func GetParamByName(name string) *chaincfg.Params {
@@ -54,6 +75,7 @@ func GetParamByName(name string) *chaincfg.Params {
 		chainParams = make(map[string]*chaincfg.Params)
 		chainParams["btc"] = &BTCMainNetParams
 		chainParams["dsc"] = &DSCMainNetParams
+		chainParams["btctest"] = &BTCTestNet3Params
 	}
 
 	param, ok := chainParams[strings.ToLower(name)]
