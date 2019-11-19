@@ -70,12 +70,54 @@ var DSCMainNetParams = chaincfg.Params{
 	HDCoinType: 1208,
 }
 
+var BCHMainNetParams = chaincfg.Params{
+	Name: "bch",
+
+	// The prefix for the cashaddress
+	Bech32HRPSegwit: "bitcoincash", // always bitcoincash for mainnet, <CashAddressPrefix>
+
+	// Address encoding magics
+	PubKeyHashAddrID: 0x00, // starts with 1
+	ScriptHashAddrID: 0x05, // starts with 3
+	PrivateKeyID:     0x80, // starts with 5 (uncompressed) or K (compressed)
+
+	// BIP32 hierarchical deterministic extended key magics
+	HDPrivateKeyID: [4]byte{0x04, 0x88, 0xad, 0xe4}, // starts with xprv
+	HDPublicKeyID:  [4]byte{0x04, 0x88, 0xb2, 0x1e}, // starts with xpub
+
+	// BIP44 coin type used in the hierarchical deterministic path for
+	// address generation.
+	HDCoinType: 145,
+}
+
+var BSVMainNetParams = chaincfg.Params{
+	Name: "bsv",
+
+	// The prefix for the cashaddress
+	Bech32HRPSegwit: "bitcoincash", // always bitcoincash for mainnet, <CashAddressPrefix>
+
+	// Address encoding magics
+	PubKeyHashAddrID: 0x00, // starts with 1
+	ScriptHashAddrID: 0x05, // starts with 3
+	PrivateKeyID:     0x80, // starts with 5 (uncompressed) or K (compressed)
+
+	// BIP32 hierarchical deterministic extended key magics
+	HDPrivateKeyID: [4]byte{0x04, 0x88, 0xad, 0xe4}, // starts with xprv
+	HDPublicKeyID:  [4]byte{0x04, 0x88, 0xb2, 0x1e}, // starts with xpub
+
+	// BIP44 coin type used in the hierarchical deterministic path for
+	// address generation.
+	HDCoinType: 236,
+}
+
 func GetParamByName(name string) *chaincfg.Params {
 	if chainParams == nil {
 		chainParams = make(map[string]*chaincfg.Params)
 		chainParams["btc"] = &BTCMainNetParams
 		chainParams["dsc"] = &DSCMainNetParams
 		chainParams["btctest"] = &BTCTestNet3Params
+		chainParams["bch"] = &BCHMainNetParams
+		chainParams["bsv"] = &BSVMainNetParams
 	}
 
 	param, ok := chainParams[strings.ToLower(name)]
