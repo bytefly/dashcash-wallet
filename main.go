@@ -40,12 +40,26 @@ var (
 	buildVer  = false
 	commitID  string
 	buildTime string
+
+	addUtxo bool
+	rmUtxo  bool
+	hash    string
+	index   int
+	addr    string
+	value   int64
 )
 
 func init() {
 	flag.BoolVar(&fDebug, "debug", false, "Debug")
 	flag.StringVar(&fConfigFile, "cfg", "config.ini", "Configuration file")
 	flag.BoolVar(&buildVer, "version", false, "print build version and then exit")
+
+	flag.BoolVar(&addUtxo, "addUtxo", false, "add a utxo to db")
+	flag.BoolVar(&rmUtxo, "rmUtxo", false, "remove a utxo from db")
+	flag.StringVar(&hash, "hash", "demo", "tx hash")
+	flag.IntVar(&index, "index", 0, "tx output index")
+	flag.StringVar(&addr, "addr", "", "tx output address")
+	flag.Int64Var(&value, "value", 0, "tx output amount")
 }
 
 func main() {
@@ -85,6 +99,15 @@ func main() {
 	err = openDb(config.DBDir)
 	if err != nil {
 		log.Println("open db err:", err)
+		return
+	}
+
+	if addUtxo {
+		createUtxo(hash, uint32(index), addr, value)
+		return
+	}
+	if rmUtxo {
+		removeUtxo(hash, uint32(index), "", 0)
 		return
 	}
 
