@@ -223,6 +223,26 @@ func VerifyAddress(chain, address string) bool {
 	return true
 }
 
+func IsNativeSegWitAddress(chain, address string) bool {
+	param := GetParamByName(chain)
+	addr, err := btcutil.DecodeAddress(address, param)
+	if err != nil {
+		return false
+	}
+
+	if false == addr.IsForNet(param) {
+		log.Println("address not from mainnet")
+		return false
+	}
+
+	switch addr.(type) {
+	case *btcutil.AddressWitnessPubKeyHash, *btcutil.AddressWitnessScriptHash:
+		return true
+	default:
+		return false
+	}
+}
+
 func LoadAddrPath(addr string) (string, bool) {
 	path, ok := addrs.Load(addr)
 	if !ok {

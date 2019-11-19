@@ -7,10 +7,6 @@ import (
 	"log"
 )
 
-const (
-	CHAIN_ID = 4
-)
-
 func storeTokenDepositTx(config *conf.Config, token string, hash string, addr string, amount string) {
 	comm := tars.NewCommunicator()
 	obj := "NeexTrx.FreezingSysServer.FreezingSysObj"
@@ -20,7 +16,7 @@ func storeTokenDepositTx(config *conf.Config, token string, hash string, addr st
 
 	comm.StringToProxy(obj, app)
 
-	ret, err := app.User_into_dc2(addr, token, hash, amount, CHAIN_ID)
+	ret, err := app.User_into_dc2(addr, token, hash, amount, config.ChainId)
 	if err != nil {
 		log.Println("call freezing deposit err:", err)
 		return

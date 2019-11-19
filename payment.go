@@ -263,7 +263,7 @@ func PrepareTrezorSign(config *conf.Config, tx *wire.MsgTx) (string, error) {
 		addrId, _ := strconv.ParseInt(val[pos+1:], 10, 32)
 
 		trezorTx.Inputs[i].AddressN[0] = 44 | 0x80000000
-		trezorTx.Inputs[i].AddressN[1] = 1208 | 0x80000000
+		trezorTx.Inputs[i].AddressN[1] = param.HDCoinType | 0x80000000
 		trezorTx.Inputs[i].AddressN[2] = 0 | 0x80000000 //account 0
 		trezorTx.Inputs[i].AddressN[3] = uint32(branch)
 		trezorTx.Inputs[i].AddressN[4] = uint32(addrId)
@@ -301,9 +301,15 @@ func PrepareTrezorSign(config *conf.Config, tx *wire.MsgTx) (string, error) {
 			return "", err
 		}
 		trezorTx.Outputs[i] = make(TrezorOutput)
-		trezorTx.Outputs[i]["address"] = addrSet[0].EncodeAddress()
-		trezorTx.Outputs[i]["amount"] = strconv.FormatInt(tx.TxOut[i].Value, 10)
-		trezorTx.Outputs[i]["script_type"] = "PAYTOADDRESS"
+		if len(addrSet) == 0 {
+			trezorTx.Outputs[i]["amount"] = "0"
+			trezorTx.Outputs[i]["script_type"] = "PAYTOOPRETURN"
+			trezorTx.Outputs[i]["op_return_data"] = hex.EncodeToString(tx.TxOut[i].PkScript[2:])
+		} else {
+			trezorTx.Outputs[i]["address"] = addrSet[0].EncodeAddress()
+			trezorTx.Outputs[i]["amount"] = strconv.FormatInt(tx.TxOut[i].Value, 10)
+			trezorTx.Outputs[i]["script_type"] = "PAYTOADDRESS"
+		}
 	}
 
 	str, err := json.Marshal(&trezorTx)

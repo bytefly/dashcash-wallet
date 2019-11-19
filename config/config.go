@@ -8,6 +8,7 @@ import (
 type Config struct {
 	TestNet   int
 	ChainName string
+	ChainId   int32
 	RPCURL    string
 	RPCUser   string
 	RPCPass   string
@@ -39,6 +40,7 @@ func LoadConfiguration(filepath string) (*Config, error) {
 
 	config.TestNet = cfg.Section("network").Key("testnet").MustInt(0)
 	config.ChainName = cfg.Section("network").Key("chain").String()
+	config.ChainId = int32(cfg.Section("network").Key("chain_id").MustInt(1))
 	config.RPCURL = cfg.Section("network").Key("rpc_host").String()
 	config.RPCUser = cfg.Section("network").Key("rpc_user").String()
 	config.RPCPass = cfg.Section("network").Key("rpc_pass").String()

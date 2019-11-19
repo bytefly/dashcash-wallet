@@ -23,7 +23,6 @@ func zmqInit(url string) (err error) {
 		return
 	}
 	subSocket.SetSubscribe("rawtx")
-	subSocket.SetSubscribe("hashblock")
 
 	err = subSocket.Connect(url)
 	if err != nil {
