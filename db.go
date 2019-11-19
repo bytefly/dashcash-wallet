@@ -277,6 +277,7 @@ func CreateTxForOutputs(feePerKb uint32, sender string, outputs []TxOut, changeA
 		amount       int64
 		utxos        []Utxo
 		err          error
+		i            int
 	)
 
 	// caching all utxos may be better
@@ -302,7 +303,11 @@ func CreateTxForOutputs(feePerKb uint32, sender string, outputs []TxOut, changeA
 	var usedUtxo Utxo
 	inputs := make([]TxInput, 0)
 	for _, o := range utxos {
-		totalBalance += o.Value
+		if (sender == "" && o.Value <= 546 && useTinyUtxo) || o.Value > 546 {
+			utxos[i] = o
+			i++
+			totalBalance += o.Value
+		}
 		if len(inputs) == 0 && o.Address == sender {
 			usedUtxo = o
 			balance += o.Value
@@ -312,7 +317,14 @@ func CreateTxForOutputs(feePerKb uint32, sender string, outputs []TxOut, changeA
 
 			input := TxInput{Hash: o.Hash, Index: o.Index, Address: o.Address}
 			inputs = append(inputs, input)
+			//add missing sender utxo
+			if o.Value <= 546 {
+				totalBalance += o.Value
+			}
 		}
+	}
+	if sender != "" {
+		utxos = utxos[:i]
 	}
 
 	minAmount := minOutputAmount(feePerKb)
