@@ -103,6 +103,10 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName str
 		}
 
 		addrStr := addrSet[0].EncodeAddress()
+		if param.Name == "bch" {
+			addrStr, _ = util.ConvertLegacyToCashAddr(addrStr, param)
+			addrStr = addrStr[len(param.Bech32HRPSegwit)+1:]
+		}
 		_, ok := util.LoadAddrPath(addrStr)
 		if ok {
 			inputAddrs = append(inputAddrs, addrStr)
@@ -134,11 +138,15 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName str
 		}
 
 		if len(addrSet) == 0 {
-			log.Println("cannot get address", hash, i)
+			//log.Println("cannot get address", hash, i)
 			continue
 		}
 
 		addrStr := addrSet[0].EncodeAddress()
+		if param.Name == "bch" {
+			addrStr, _ = util.ConvertLegacyToCashAddr(addrStr, param)
+			addrStr = addrStr[len(param.Bech32HRPSegwit)+1:]
+		}
 		_, ok := util.LoadAddrPath(addrStr)
 		if ok {
 			outputAddrs = append(outputAddrs, addrStr)
@@ -307,6 +315,10 @@ func ParseMempoolTransaction(config *conf.Config, msgtx *wire.MsgTx, chainName s
 		}
 
 		addrStr := addrSet[0].EncodeAddress()
+		if param.Name == "bch" {
+			addrStr, _ = util.ConvertLegacyToCashAddr(addrStr, param)
+			addrStr = addrStr[len(param.Bech32HRPSegwit)+1:]
+		}
 		_, ok := util.LoadAddrPath(addrStr)
 		if ok {
 			removeUtxo(prevHash.String(), prevIndex, addrStr, value)
@@ -326,11 +338,15 @@ func ParseMempoolTransaction(config *conf.Config, msgtx *wire.MsgTx, chainName s
 		}
 
 		if len(addrSet) == 0 {
-			log.Println("cannot get address", hash, i)
+			//log.Println("cannot get address", hash, i)
 			continue
 		}
 
 		addrStr := addrSet[0].EncodeAddress()
+		if param.Name == "bch" {
+			addrStr, _ = util.ConvertLegacyToCashAddr(addrStr, param)
+			addrStr = addrStr[len(param.Bech32HRPSegwit)+1:]
+		}
 		_, ok := util.LoadAddrPath(addrStr)
 		if ok {
 			createUtxo(hash, uint32(i), addrStr, msgtx.TxOut[i].Value)

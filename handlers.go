@@ -194,6 +194,11 @@ func GetAddrHandler(config *conf.Config) func(w http.ResponseWriter, r *http.Req
 			RespondWithError(w, 500, "Couldn't create eth address")
 			return
 		}
+		param := util.GetParamByName(config.ChainName)
+		if param.Name == "bch" {
+			addr, _ = util.ConvertLegacyToCashAddr(addr, param)
+			addr = addr[len(param.Bech32HRPSegwit)+1:]
+		}
 		log.Println("send addr:", addr, config.Index)
 		util.StoreAddrPath(addr, fmt.Sprintf("0/%d", config.Index))
 		config.Index++

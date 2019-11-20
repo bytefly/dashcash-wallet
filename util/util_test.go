@@ -24,3 +24,32 @@ func TestRightShift(t *testing.T) {
 	fmt.Println("RightShift(1111333.0059, 8)=", RightShift("1111333.0059", 8))
 	fmt.Println("RightShift(1111, 8)=", RightShift("1111", 8))
 }
+
+func TestEncode(t *testing.T) {
+	cases := make(map[string]string)
+	cases["1b1itzeSKYEKhdcthUSnNJ47Fx2U8Zwwn"] = "bitcoincash:qqrxa0h9jqnc7v4wmj9ysetsp3y7w9l36u8gnnjulq"
+	cases["3KTuim99rePpvzNRPBMuYb4ZCTWthpY1N9"] = "bitcoincash:prp00td3tddhwrxp89x34p8lxc7p8eyepg2v8a3tml"
+	for k, v := range cases {
+		encoded, _ := ConvertLegacyToCashAddr(k, &BCHMainNetParams)
+		if encoded != v {
+			fmt.Println(encoded, "!=", v)
+		}
+	}
+}
+
+func TestDecode(t *testing.T) {
+	cases := make(map[string]string)
+	cases["bitcoincash:qqrxa0h9jqnc7v4wmj9ysetsp3y7w9l36u8gnnjulq"] = "1b1itzeSKYEKhdcthUSnNJ47Fx2U8Zwwn"
+	cases["bitcoincash:prp00td3tddhwrxp89x34p8lxc7p8eyepg2v8a3tml"] = "3KTuim99rePpvzNRPBMuYb4ZCTWthpY1N9"
+	for k, v := range cases {
+		legacyAddr, err := ConvertCashAddrToLegacy(k, &BCHMainNetParams)
+		if err != nil {
+			fmt.Println("Error:", err)
+			continue
+		}
+
+		if legacyAddr != v {
+			fmt.Println(legacyAddr, "!=", v)
+		}
+	}
+}
