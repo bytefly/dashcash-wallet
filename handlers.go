@@ -136,9 +136,6 @@ func PrepareTrezorSignHandler(config *conf.Config) func(w http.ResponseWriter, r
 			RespondWithError(w, 400, "Invalid to address")
 			return
 		}
-		if strings.ToLower(config.ChainName) == "bch" {
-			to, _ = util.ConvertCashAddrToLegacy(to, param)
-		}
 
 		log.Println("preparing send coin to", to, "amount:", amountStr)
 
@@ -169,6 +166,10 @@ func PrepareTrezorSignHandler(config *conf.Config) func(w http.ResponseWriter, r
 			return
 		}
 
+		if strings.ToLower(config.ChainName) == "bch" {
+			to, _ = util.ConvertCashAddrToLegacy(to, param)
+			changeAddress, _ = util.ConvertCashAddrToLegacy(changeAddress, param)
+		}
 		outputs := make([]TxOut, 1)
 		outputs[0] = TxOut{Address: to, Amount: amount}
 		tx, hasChange := CreateTxForOutputs(config.FeeRate, "", outputs, changeAddress, param, false, false)

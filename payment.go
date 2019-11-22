@@ -133,6 +133,9 @@ func BuildSignedMsgTx(chain, xpriv string, inputs []TxInput, outputs []TxOut) (*
 			return nil, errors.New("Unspendable utxo found")
 		}
 
+		if strings.ToLower(chain) == "bch" {
+			inputs[i].Address, _ = util.ConvertCashAddrToLegacy(inputs[i].Address, param)
+		}
 		script, err := getScriptFromAddress(inputs[i].Address, param)
 		if err != nil {
 			return nil, err
@@ -182,6 +185,9 @@ func SignMsgTx(chain, xpriv string, tx *wire.MsgTx) (*wire.MsgTx, error) {
 			return nil, errors.New("Unspendable utxo found")
 		}
 
+		if strings.ToLower(chain) == "bch" {
+			address, _ = util.ConvertCashAddrToLegacy(address, param)
+		}
 		script, err := getScriptFromAddress(address, param)
 		if err != nil {
 			return nil, err
