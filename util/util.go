@@ -209,6 +209,14 @@ func RightShift(str string, size int) string {
 }
 
 func VerifyAddress(chain, address string) bool {
+	if strings.ToLower(chain) == "bch" {
+		_, err := ConvertCashAddrToLegacy(address, &BCHMainNetParams)
+		if err != nil {
+			return false
+		}
+		return true
+	}
+
 	param := GetParamByName(chain)
 	addr, err := btcutil.DecodeAddress(address, param)
 	if err != nil {

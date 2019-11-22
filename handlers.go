@@ -74,6 +74,9 @@ func SendCoinHandler(config *conf.Config) func(w http.ResponseWriter, r *http.Re
 			RespondWithError(w, 400, "Invalid to address")
 			return
 		}
+		if strings.ToLower(config.ChainName) == "bch" {
+			to, _ = util.ConvertCashAddrToLegacy(to, param)
+		}
 
 		log.Println("send coin to", to, "amount:", amountStr)
 
@@ -132,6 +135,9 @@ func PrepareTrezorSignHandler(config *conf.Config) func(w http.ResponseWriter, r
 			log.Println("Invalid to address:", to)
 			RespondWithError(w, 400, "Invalid to address")
 			return
+		}
+		if strings.ToLower(config.ChainName) == "bch" {
+			to, _ = util.ConvertCashAddrToLegacy(to, param)
 		}
 
 		log.Println("preparing send coin to", to, "amount:", amountStr)
@@ -375,12 +381,12 @@ func SendOmniCoinHandler(config *conf.Config) func(w http.ResponseWriter, r *htt
 			return
 		}
 		if balance < amount {
-			log.Printf("no enough balance, balance: %.8f, amount: %.8f\n", balance, amount)
+			log.Printf("no enough balance, balance: %d, amount: %d\n", balance, amount)
 			RespondWithError(w, 400, "No enough balance for transfer")
 			return
 		}
 		if balance < (pendingAmount + amount) {
-			log.Printf("no enough balance, balance: %.8f, amount: %.8f, pending_amount: %.8f\n", balance, amount, pendingAmount)
+			log.Printf("no enough balance, balance: %d, amount: %d, pending_amount: %d\n", balance, amount, pendingAmount)
 			RespondWithError(w, 400, "So many pending transactions that balance is less")
 			return
 		}

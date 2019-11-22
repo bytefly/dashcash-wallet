@@ -37,7 +37,7 @@ type BlockHeader struct {
 
 type Params struct {
 	Subscription string      `json:"subscription"`
-	Result       interface{} `json:"result`
+	Result       interface{} `json:"result"`
 }
 
 type ResponseMessage struct {
