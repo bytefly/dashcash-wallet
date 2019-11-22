@@ -295,6 +295,11 @@ func ConvertLegacyToCashAddr(legacyAddr string, param *chaincfg.Params) (string,
 }
 
 func ConvertCashAddrToLegacy(cashAddr string, param *chaincfg.Params) (string, error) {
+	pos := strings.LastIndexByte(cashAddr, ':')
+	if pos < 0 {
+		cashAddr = param.Bech32HRPSegwit + ":" + cashAddr
+	}
+
 	buf := new(bytes.Buffer)
 	hrp, decoded, err := Decode(cashAddr)
 	if err != nil {
