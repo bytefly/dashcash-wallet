@@ -505,6 +505,10 @@ func PrepareOmniTrezorSignHandler(config *conf.Config) func(w http.ResponseWrite
 			return
 		}
 
+		tmp := *tx.TxOut[1]
+		tx.TxOut[1] = tx.TxOut[2]
+		tx.TxOut[2] = &tmp
+
 		trezorTx, err := PrepareTrezorSign(config, tx)
 		if err != nil {
 			RespondWithError(w, 500, fmt.Sprintf("prepare trezor sign err:%v", err))
