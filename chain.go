@@ -227,6 +227,7 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName str
 		}
 	}
 
+	message.Coin = strings.ToUpper(chainName)
 	if len(inputAddrs) == 0 && len(outputAddrs) > 0 {
 		log.Println("deposit tx found")
 		for i := 0; i < len(outputAddrs); i++ {
