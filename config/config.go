@@ -25,6 +25,11 @@ type Config struct {
 	RegistryAddr string
 	ZmqURL       string
 	DBDir        string
+
+	DBHost string
+	DBName string
+	DBUser string
+	DBPass string
 }
 
 var cfg *ini.File
@@ -57,6 +62,11 @@ func LoadConfiguration(filepath string) (*Config, error) {
 	config.RegistryAddr = cfg.Section("extapi").Key("registry").String()
 	config.ZmqURL = cfg.Section("extapi").Key("zmq").String()
 	config.DBDir = cfg.Section("extapi").Key("dbDir").String()
+
+	config.DBHost = cfg.Section("db").Key("host").String()
+	config.DBName = cfg.Section("db").Key("name").String()
+	config.DBUser = cfg.Section("db").Key("user").String()
+	config.DBPass = cfg.Section("db").Key("pass").String()
 	return config, nil
 }
 

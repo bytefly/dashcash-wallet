@@ -56,7 +56,7 @@ func GetOmniTxStatus(c *conf.Config, hash string) (bool, error) {
 	return txResult.Valid, nil
 }
 
-func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName string) (messages []NotifyMessage, err error) {
+func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName string, blockTime uint64) (messages []NotifyMessage, err error) {
 	var (
 		fee              uint64
 		opReturnNum      int
@@ -73,6 +73,7 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName str
 	}
 
 	hash := msgtx.TxHash().String()
+	extInputAddrNum := 0
 	inputAddrs := make([]string, 0)
 	inputAddrs2 := make([]string, 0)
 	outputAddrs := make([]string, 0)
@@ -107,10 +108,13 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName str
 			addrStr, _ = util.ConvertLegacyToCashAddr(addrStr, param)
 			addrStr = addrStr[len(param.Bech32HRPSegwit)+1:]
 		}
-		_, ok := util.LoadAddrPath(addrStr)
+		path, ok := util.LoadAddrPath(addrStr)
 		if ok {
 			inputAddrs = append(inputAddrs, addrStr)
 			removeUtxo(prevHash.String(), prevIndex, addrStr, value)
+			if strings.Index(path, "0/") == 0 {
+				extInputAddrNum++
+			}
 		} else {
 			inputAddrs2 = append(inputAddrs2, addrStr)
 		}
@@ -176,21 +180,33 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName str
 		TxHash:      hash,
 		Fee:         big.NewInt(int64(fee)),
 		Coin:        strings.ToUpper(chainName),
+		BlockTime:   blockTime,
 	}
 	if strings.EqualFold(chainName, "btc") && opReturnNum == 1 && omniReceiver != "" {
 		omniScript := msgtx.TxOut[firstOpReturnPos].PkScript
 		_, senderExist := util.LoadAddrPath(omniSender)
 		_, receiverExist := util.LoadAddrPath(omniReceiver)
-		txType := -1
+		txType := TYPE_NONE
 		if !senderExist && receiverExist {
-			txType = 0
+			path, _ := util.LoadAddrPath(omniReceiver)
+			if strings.Index(path, "0/") == 0 {
+				txType = TYPE_USER_DEPOSIT
+			} else {
+				txType = TYPE_ADMIN_DEPOSIT
+			}
 		} else if senderExist && !receiverExist {
-			txType = 1
+			path, _ := util.LoadAddrPath(omniSender)
+			if strings.Index(path, "0/") == 0 {
+				txType = TYPE_ADMIN_WITHDRAW
+			} else {
+				txType = TYPE_USER_WITHDRAW
+			}
 		} else if senderExist && receiverExist {
+			txType = TYPE_FUND_COLLECTION
 			log.Println("inner USDT tx")
 		}
 
-		if txType >= 0 {
+		if txType != TYPE_NONE {
 			message.TxType = txType
 			if len(omniScript) != 22 {
 				log.Println("script len is invalid, ignore it")
@@ -211,18 +227,28 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName str
 		}
 	}
 
-	message.Coin = strings.ToUpper(chainName)
 	if len(inputAddrs) == 0 && len(outputAddrs) > 0 {
 		log.Println("deposit tx found")
-		message.TxType = 0
 		for i := 0; i < len(outputAddrs); i++ {
+			path, _ := util.LoadAddrPath(outputAddrs[i])
+			if strings.Index(path, "0/") == 0 {
+				message.TxType = TYPE_USER_DEPOSIT
+			} else {
+				message.TxType = TYPE_ADMIN_DEPOSIT
+			}
 			message.Address = outputAddrs[i]
 			message.Amount = big.NewInt(outputValue[message.Address])
 			messages = append(messages, message)
 		}
 	} else if len(inputAddrs2) == 0 && len(outputAddrs2) > 0 {
-		log.Println("withdraw tx found")
-		message.TxType = 1
+		if extInputAddrNum == 0 {
+			log.Println("user withdraw tx found")
+			message.TxType = TYPE_USER_WITHDRAW
+		} else {
+			log.Println("admin withdraw tx found")
+			message.TxType = TYPE_ADMIN_WITHDRAW
+		}
+
 		for i := 0; i < len(outputAddrs2); i++ {
 			message.Address = outputAddrs2[i]
 			message.Amount = big.NewInt(outputValue[message.Address])
@@ -230,6 +256,10 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName str
 		}
 	} else if len(inputAddrs2) == 0 && len(outputAddrs2) == 0 {
 		log.Println("inner tx found:", hash)
+		message.TxType = TYPE_FUND_COLLECTION
+		message.Address = outputAddrs[0]
+		message.Amount = big.NewInt(outputValue[message.Address])
+		messages = append(messages, message)
 	}
 
 	return
@@ -254,7 +284,7 @@ func ReadBlock(client *rpcclient.Client, block *big.Int, chainName string) ([]No
 		if i == 0 {
 			continue
 		}
-		message, err := ParseTransaction(client, tx, chainName)
+		message, err := ParseTransaction(client, tx, chainName, uint64(blockInfo.Header.Timestamp.Unix()))
 		if err == nil {
 			messages = append(messages, message...)
 		}
@@ -301,7 +331,6 @@ func ParseMempoolTransaction(config *conf.Config, msgtx *wire.MsgTx, chainName s
 		}
 		tx, err := client.GetRawTransaction(&prevHash)
 		if err != nil {
-			log.Println("get transaction err:", err, hash, i, prevHash.String())
 			continue
 		}
 		value := tx.MsgTx().TxOut[prevIndex].Value

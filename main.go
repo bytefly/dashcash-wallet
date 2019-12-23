@@ -30,7 +30,8 @@ type NotifyMessage struct {
 	TxHash      string
 	Fee         *big.Int
 	Coin        string
-	TxType      int //0: deposit, 1: withdraw
+	TxType      int
+	BlockTime   uint64
 }
 
 var (

@@ -49,6 +49,13 @@ type ResponseMessage struct {
 const (
 	TYPE_BLOCK_HASH = iota
 	MIN_BTC_AMOUNT  = 100000
+
+	TYPE_NONE = iota
+	TYPE_USER_DEPOSIT
+	TYPE_ADMIN_DEPOSIT
+	TYPE_USER_WITHDRAW
+	TYPE_ADMIN_WITHDRAW
+	TYPE_FUND_COLLECTION
 )
 
 type ObjMessage struct {
@@ -193,16 +200,17 @@ func Notifier(config *conf.Config, ch <-chan NotifyMessage) {
 		}
 
 		switch message.TxType {
-		case 0:
+		case TYPE_USER_DEPOSIT:
 			//small btc deposit less then 0.001 is ignored
 			if symbol == "BTC" && message.Amount.Uint64() < MIN_BTC_AMOUNT {
 				break
 			}
 			log.Printf("%s %s tokens deposit to %s, tx: %s\n", symbol, amount, addr, message.TxHash)
 			storeTokenDepositTx(config, symbol, message.TxHash, addr, amount)
-		case 1:
+		case TYPE_USER_WITHDRAW:
 			log.Printf("%s %s tokens withdraw to %s, tx: %s fee: %s\n", symbol, amount, addr, message.TxHash, fee)
 			storeTokenWithdrawTx(config, symbol, message.TxHash, addr, amount, fee)
 		}
+		EnterFundflowDB(config, message, symbol, fee)
 	}
 }
