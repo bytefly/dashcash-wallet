@@ -131,7 +131,7 @@ func saveAdminWithdrawTxFlow(config *conf.Config, message NotifyMessage, symbol,
 	var sb strings.Builder
 	userID, err := getOpUserIDByTxHash(config, message.TxHash)
 	if err != nil {
-		return
+		log.Println("admin withdraw user not found, hash:", message.TxHash)
 	}
 	flowID := generateFlowID(message, userID)
 
