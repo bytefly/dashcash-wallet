@@ -37,6 +37,7 @@ type NotifyMessage struct {
 var (
 	fDebug      bool
 	fConfigFile string
+	packHash    string
 
 	buildVer  = false
 	commitID  string
@@ -54,6 +55,7 @@ func init() {
 	flag.BoolVar(&fDebug, "debug", false, "Debug")
 	flag.StringVar(&fConfigFile, "cfg", "config.ini", "Configuration file")
 	flag.BoolVar(&buildVer, "version", false, "print build version and then exit")
+	flag.StringVar(&packHash, "pack", "", "packet the hash to system")
 
 	flag.BoolVar(&addUtxo, "addUtxo", false, "add a utxo to db")
 	flag.BoolVar(&rmUtxo, "rmUtxo", false, "remove a utxo from db")

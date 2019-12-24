@@ -285,9 +285,11 @@ func ReadBlock(client *rpcclient.Client, block *big.Int, chainName string) ([]No
 		if i == 0 {
 			continue
 		}
-		message, err := ParseTransaction(client, tx, chainName, uint64(blockInfo.Header.Timestamp.Unix()))
-		if err == nil {
-			messages = append(messages, message...)
+		if packHash == "" || packHash == tx.TxHash().String() {
+			message, err := ParseTransaction(client, tx, chainName, uint64(blockInfo.Header.Timestamp.Unix()))
+			if err == nil {
+				messages = append(messages, message...)
+			}
 		}
 	}
 
