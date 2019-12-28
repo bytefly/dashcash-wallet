@@ -258,9 +258,11 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName str
 	} else if len(inputAddrs2) == 0 && len(outputAddrs2) == 0 {
 		log.Println("inner tx found:", hash)
 		message.TxType = TYPE_FUND_COLLECTION
-		message.Address = outputAddrs[0]
-		message.Amount = big.NewInt(outputValue[message.Address])
-		messages = append(messages, message)
+		for i := 0; i < len(outputAddrs); i++ {
+			message.Address = outputAddrs[i]
+			message.Amount = big.NewInt(outputValue[message.Address])
+			messages = append(messages, message)
+		}
 	}
 
 	return
