@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	conf "github.com/bytefly/dashcash-wallet/config"
@@ -67,7 +68,7 @@ func init() {
 
 func main() {
 	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt)
+	signal.Notify(interrupt, syscall.SIGINT, syscall.SIGTERM)
 	ticker := time.NewTicker(time.Second)
 	newBlockTicker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
