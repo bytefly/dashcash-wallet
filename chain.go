@@ -102,6 +102,9 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName str
 			log.Println("parse input pkscript err:", err, hash, i)
 			continue
 		}
+		if len(addrSet) == 0 {
+			continue
+		}
 
 		addrStr := addrSet[0].EncodeAddress()
 		if param.Name == "bch" {
@@ -241,7 +244,7 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName str
 			message.Amount = big.NewInt(outputValue[message.Address])
 			messages = append(messages, message)
 		}
-	} else if len(inputAddrs2) == 0 && len(outputAddrs2) > 0 {
+	} else if len(inputAddrs) > 0 && len(inputAddrs2) == 0 && len(outputAddrs2) > 0 {
 		if extInputAddrNum == 0 {
 			log.Println("user withdraw tx found")
 			message.TxType = TYPE_USER_WITHDRAW
