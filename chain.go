@@ -8,6 +8,7 @@ import (
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	conf "github.com/bytefly/dashcash-wallet/config"
+	"github.com/bytefly/dashcash-wallet/usdt"
 	"github.com/bytefly/dashcash-wallet/util"
 	"github.com/ibclabs/omnilayer-go"
 	"log"
@@ -215,8 +216,8 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName str
 				log.Println("script len is invalid, ignore it")
 			} else {
 				//only support USDT@btc
-				omniTemplate := []byte("omni\x00\x00\x00\x00\x00\x00\x00\x1f")
-				if bytes.Compare(omniScript[2:14], omniTemplate) != 0 {
+				omniTemplate := usdt.GetOmniUsdtScript(0)
+				if bytes.Compare(omniScript[2:14], omniTemplate[0:12]) != 0 {
 					log.Println("not a usdt send tx, ignore it")
 				} else {
 					omniValue := binary.BigEndian.Uint64(omniScript[14:])
