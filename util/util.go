@@ -41,7 +41,14 @@ func AddressInit(xpub string, branch uint32, total int, param *chaincfg.Params) 
 
 		pubkey, _ := acctExt.ECPubKey()
 		addr := getAddrByPubKey(pubkey.SerializeCompressed(), param)
+		if strings.HasPrefix(strings.ToLower(param.Name), "bch") {
+			addr, _ = ConvertLegacyToCashAddr(addr, param)
+			addr = addr[len(param.Bech32HRPSegwit)+1:]
+		}
 		addrs.Store(addr, fmt.Sprintf("%d/%d", branch, i))
+		if branch == 1 && i == 0 {
+			log.Println("inner withdraw addr:", addr)
+		}
 	}
 }
 

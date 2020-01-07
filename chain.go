@@ -108,7 +108,7 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName str
 		}
 
 		addrStr := addrSet[0].EncodeAddress()
-		if param.Name == "bch" {
+		if strings.HasPrefix(strings.ToLower(chainName), "bch") {
 			addrStr, _ = util.ConvertLegacyToCashAddr(addrStr, param)
 			addrStr = addrStr[len(param.Bech32HRPSegwit)+1:]
 		}
@@ -151,7 +151,7 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName str
 		}
 
 		addrStr := addrSet[0].EncodeAddress()
-		if param.Name == "bch" {
+		if strings.HasPrefix(strings.ToLower(chainName), "bch") {
 			addrStr, _ = util.ConvertLegacyToCashAddr(addrStr, param)
 			addrStr = addrStr[len(param.Bech32HRPSegwit)+1:]
 		}
@@ -353,7 +353,7 @@ func ParseMempoolTransaction(config *conf.Config, msgtx *wire.MsgTx, chainName s
 		}
 
 		addrStr := addrSet[0].EncodeAddress()
-		if param.Name == "bch" {
+		if strings.HasPrefix(strings.ToLower(chainName), "bch") {
 			addrStr, _ = util.ConvertLegacyToCashAddr(addrStr, param)
 			addrStr = addrStr[len(param.Bech32HRPSegwit)+1:]
 		}
@@ -381,7 +381,7 @@ func ParseMempoolTransaction(config *conf.Config, msgtx *wire.MsgTx, chainName s
 		}
 
 		addrStr := addrSet[0].EncodeAddress()
-		if param.Name == "bch" {
+		if strings.HasPrefix(strings.ToLower(chainName), "bch") {
 			addrStr, _ = util.ConvertLegacyToCashAddr(addrStr, param)
 			addrStr = addrStr[len(param.Bech32HRPSegwit)+1:]
 		}

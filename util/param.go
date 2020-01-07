@@ -90,6 +90,26 @@ var BCHMainNetParams = chaincfg.Params{
 	HDCoinType: 145,
 }
 
+var BCHTestNetParams = chaincfg.Params{
+	Name: "bchtest",
+
+	// The prefix for the cashaddress
+	Bech32HRPSegwit: "bchtest",
+
+	// Address encoding magics
+	PubKeyHashAddrID: 0x6f, // starts with m or n
+	ScriptHashAddrID: 0xc4, // starts with 2
+	PrivateKeyID:     0xef, // starts with 9 (uncompressed) or c (compressed)
+
+	// BIP32 hierarchical deterministic extended key magics
+	HDPrivateKeyID: [4]byte{0x04, 0x35, 0x83, 0x94}, // starts with tprv
+	HDPublicKeyID:  [4]byte{0x04, 0x35, 0x87, 0xcf}, // starts with tpub
+
+	// BIP44 coin type used in the hierarchical deterministic path for
+	// address generation.
+	HDCoinType: 145,
+}
+
 var BSVMainNetParams = chaincfg.Params{
 	Name: "bsv",
 
@@ -117,6 +137,7 @@ func GetParamByName(name string) *chaincfg.Params {
 		chainParams["dsc"] = &DSCMainNetParams
 		chainParams["btctest"] = &BTCTestNet3Params
 		chainParams["bch"] = &BCHMainNetParams
+		chainParams["bchtest"] = &BCHTestNetParams
 		chainParams["bsv"] = &BSVMainNetParams
 	}
 

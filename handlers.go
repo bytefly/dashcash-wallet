@@ -74,7 +74,7 @@ func SendCoinHandler(config *conf.Config) func(w http.ResponseWriter, r *http.Re
 			RespondWithError(w, 400, "Invalid to address")
 			return
 		}
-		if strings.ToLower(config.ChainName) == "bch" {
+		if strings.HasPrefix(strings.ToLower(config.ChainName), "bch") {
 			to, _ = util.ConvertCashAddrToLegacy(to, param)
 		}
 
@@ -166,7 +166,7 @@ func PrepareTrezorSignHandler(config *conf.Config) func(w http.ResponseWriter, r
 			return
 		}
 
-		if strings.ToLower(config.ChainName) == "bch" {
+		if strings.HasPrefix(strings.ToLower(config.ChainName), "bch") {
 			to, _ = util.ConvertCashAddrToLegacy(to, param)
 			changeAddress, _ = util.ConvertCashAddrToLegacy(changeAddress, param)
 		}
@@ -202,7 +202,7 @@ func GetAddrHandler(config *conf.Config) func(w http.ResponseWriter, r *http.Req
 			return
 		}
 		param := util.GetParamByName(config.ChainName)
-		if param.Name == "bch" {
+		if strings.HasPrefix(strings.ToLower(config.ChainName), "bch") {
 			addr, _ = util.ConvertLegacyToCashAddr(addr, param)
 			addr = addr[len(param.Bech32HRPSegwit)+1:]
 		}
