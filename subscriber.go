@@ -47,8 +47,9 @@ type ResponseMessage struct {
 }
 
 const (
-	TYPE_BLOCK_HASH = iota
-	MIN_BTC_AMOUNT  = 100000
+	TYPE_BLOCK_HASH  = iota
+	MIN_BTC_AMOUNT   = 100000
+	MIN_CONFIRMATION = 3
 
 	TYPE_NONE = iota
 	TYPE_USER_DEPOSIT
@@ -99,7 +100,7 @@ func Listener(config *conf.Config, ch <-chan ObjMessage, notifyChannel chan<- No
 			last.SetUint64(last_id)
 
 			stop := new(big.Int)
-			stop.Sub(message.Number, big.NewInt(3))
+			stop.Sub(message.Number, big.NewInt(MIN_CONFIRMATION-1))
 			for last.Cmp(message.Number) <= 0 {
 				//log.Printf("Recovery: Doing block %s", last.Text(10))
 				txns, err := ReadBlock(client, last, config.ChainName)
@@ -136,7 +137,7 @@ func Listener(config *conf.Config, ch <-chan ObjMessage, notifyChannel chan<- No
 						log.Println("add txs to", last.Uint64(), "txs size:", len(txns))
 					}
 					//scan and broadcast 3 confirms
-					txns, ok := blkPool[last.Uint64()-3]
+					txns, ok := blkPool[last.Uint64()-MIN_CONFIRMATION+1]
 					if ok {
 						for _, txn := range txns {
 							notifyChannel <- txn
@@ -144,12 +145,12 @@ func Listener(config *conf.Config, ch <-chan ObjMessage, notifyChannel chan<- No
 
 						notifyChannel <- NotifyMessage{
 							MessageType: NOTIFY_TYPE_ADMIN,
-							Amount:      new(big.Int).Sub(last, big.NewInt(3)),
+							Amount:      new(big.Int).Sub(last, big.NewInt(MIN_CONFIRMATION-1)),
 						}
 
 						// delete unconfirmed height txs map
-						delete(blkPool, last.Uint64()-3)
-						log.Println("delete txs in block", last.Uint64()-3)
+						delete(blkPool, last.Uint64()-MIN_CONFIRMATION+1)
+						log.Println("delete txs in block", last.Uint64()-MIN_CONFIRMATION+1)
 					}
 				}
 
