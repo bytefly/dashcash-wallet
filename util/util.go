@@ -216,15 +216,15 @@ func RightShift(str string, size int) string {
 }
 
 func VerifyAddress(chain, address string) bool {
-	if strings.ToLower(chain) == "bch" {
-		_, err := ConvertCashAddrToLegacy(address, &BCHMainNetParams)
+	var err error
+	param := GetParamByName(chain)
+	if strings.HasPrefix(strings.ToLower(chain), "bch") {
+		address, err = ConvertCashAddrToLegacy(address, param)
 		if err != nil {
 			return false
 		}
-		return true
 	}
 
-	param := GetParamByName(chain)
 	addr, err := btcutil.DecodeAddress(address, param)
 	if err != nil {
 		return false
