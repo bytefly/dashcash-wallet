@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -11,6 +12,9 @@ import (
 	"github.com/btcsuite/btcutil"
 	conf "github.com/bytefly/dashcash-wallet/config"
 	"github.com/bytefly/dashcash-wallet/util"
+	"github.com/gcash/bchd/bchec"
+	bchtxscript "github.com/gcash/bchd/txscript"
+	bchwire "github.com/gcash/bchd/wire"
 	"log"
 	"strconv"
 	"strings"
@@ -126,50 +130,23 @@ func BuildSignedMsgTx(chain, xpriv string, inputs []TxInput, outputs []TxOut) (*
 		return nil, err
 	}
 
-	for i := 0; i < len(inputs); i++ {
-		val, ok := util.LoadAddrPath(inputs[i].Address)
-		if !ok {
-			log.Println("utxo not fround in wallet")
-			return nil, errors.New("Unspendable utxo found")
-		}
-
-		if strings.HasPrefix(strings.ToLower(chain), "bch") {
-			inputs[i].Address, _ = util.ConvertCashAddrToLegacy(inputs[i].Address, param)
-		}
-		script, err := getScriptFromAddress(inputs[i].Address, param)
-		if err != nil {
-			return nil, err
-		}
-
-		pos := strings.IndexByte(val, '/')
-		branch, _ := strconv.ParseInt(val[0:pos], 10, 32)
-		addrId, _ := strconv.ParseInt(val[pos+1:], 10, 32)
-		if branch != 1 {
-			log.Println("input must only come from inner address")
-			return nil, errors.New("invalid input")
-		}
-		privKey, _ := util.GetPrivateKey(xpriv, int(branch), int(addrId))
-		//log.Println("privkey:", hex.EncodeToString(privKey.ToECDSA().D.Bytes()))
-		sig, err := txscript.SignatureScript(
-			tx,                  // The tx to be signed.
-			i,                   // The index of the txin the signature is for.
-			script,              // The other half of the script from the PubKeyHash.
-			txscript.SigHashAll, // The signature flags that indicate what the sig covers.
-			privKey,             // The key to generate the signature with.
-			true)                // The compress sig flag. This saves space on the blockchain.
-		if err != nil {
-			log.Println("create signature error:", err)
-			return nil, err
-		}
-		tx.TxIn[i].SignatureScript = sig
-	}
-
-	return tx, nil
+	return SignMsgTx(chain, xpriv, tx)
 }
 
 func SignMsgTx(chain, xpriv string, tx *wire.MsgTx) (*wire.MsgTx, error) {
+	//tx.Version = 2
 	signedTx := tx.Copy()
 	param := util.GetParamByName(chain)
+	onBCH := false
+	var bchTx bchwire.MsgTx
+	if strings.HasPrefix(strings.ToLower(chain), "bch") {
+		onBCH = true
+		buf := bytes.NewBuffer(make([]byte, 0, tx.SerializeSizeStripped()))
+		_ = tx.SerializeNoWitness(buf)
+		tx.SerializeNoWitness(buf)
+		bchTx.Deserialize(buf)
+	}
+
 	for i := 0; i < len(signedTx.TxIn); i++ {
 		outPoint := tx.TxIn[i].PreviousOutPoint
 		out, err := GetUtxoByKey(outPoint.Hash.String(), outPoint.Index)
@@ -185,7 +162,7 @@ func SignMsgTx(chain, xpriv string, tx *wire.MsgTx) (*wire.MsgTx, error) {
 			return nil, errors.New("Unspendable utxo found")
 		}
 
-		if strings.HasPrefix(strings.ToLower(chain), "bch") {
+		if onBCH {
 			address, _ = util.ConvertCashAddrToLegacy(address, param)
 		}
 		script, err := getScriptFromAddress(address, param)
@@ -202,18 +179,37 @@ func SignMsgTx(chain, xpriv string, tx *wire.MsgTx) (*wire.MsgTx, error) {
 		}
 		privKey, _ := util.GetPrivateKey(xpriv, int(branch), int(addrId))
 		//log.Println("privkey:", hex.EncodeToString(privKey.ToECDSA().D.Bytes()))
-		sig, err := txscript.SignatureScript(
-			signedTx,            // The tx to be signed.
-			i,                   // The index of the txin the signature is for.
-			script,              // The other half of the script from the PubKeyHash.
-			txscript.SigHashAll, // The signature flags that indicate what the sig covers.
-			privKey,             // The key to generate the signature with.
-			true)                // The compress sig flag. This saves space on the blockchain.
+		if onBCH {
+			signedTx.TxIn[i].SignatureScript, err = bchtxscript.SignatureScript(
+				&bchTx,   // The tx to be signed.
+				i,        // The index of the txin the signature is for.
+				10000000, //TODO: need to get amount of the input
+				script,   // The other half of the script from the PubKeyHash.
+				bchtxscript.SigHashForkID|bchtxscript.SigHashAll, // The signature flags that indicate what the sig covers.
+				(*bchec.PrivateKey)(privKey),                     // The key to generate the signature with.
+				true)                                             // The compress sig flag. This saves space on the blockchain.
+		} else {
+			signedTx.TxIn[i].SignatureScript, err = txscript.SignatureScript(
+				signedTx,            // The tx to be signed.
+				i,                   // The index of the txin the signature is for.
+				script,              // The other half of the script from the PubKeyHash.
+				txscript.SigHashAll, // The signature flags that indicate what the sig covers.
+				privKey,             // The key to generate the signature with.
+				true)                // The compress sig flag. This saves space on the blockchain.
+		}
 		if err != nil {
 			log.Println("create signature error:", err)
 			return nil, err
 		}
-		signedTx.TxIn[i].SignatureScript = sig
+		if onBCH {
+			bchTx.TxIn[i].SignatureScript = make([]byte, len(signedTx.TxIn[i].SignatureScript))
+			copy(bchTx.TxIn[i].SignatureScript, signedTx.TxIn[i].SignatureScript)
+		}
+	}
+	if onBCH {
+		buf := bytes.NewBuffer(make([]byte, 0, bchTx.SerializeSize()))
+		bchTx.Serialize(buf)
+		log.Println(hex.EncodeToString(buf.Bytes()))
 	}
 
 	return signedTx, nil

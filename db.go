@@ -381,6 +381,9 @@ func CreateTxForOutputs(feePerKb uint32, sender string, outputs []TxOut, changeA
 				return nil, false
 			}
 			changeAddress = out.Address
+			if strings.HasPrefix(strings.ToLower(param.Name), "bch") {
+				changeAddress, _ = util.ConvertCashAddrToLegacy(changeAddress, param)
+			}
 		}
 		script, _ := getScriptFromAddress(changeAddress, param)
 		tx.AddTxOut(wire.NewTxOut(balance-(amount+feeAmount), script))
