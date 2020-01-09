@@ -43,6 +43,7 @@ type TrezorInput struct {
 	AddressN  [5]uint32 `json:"address_n"`
 	PrevIndex int       `json:"prev_index"`
 	PrevHash  string    `json:"prev_hash"`
+	Amount    string    `json:"amount"`
 }
 
 type TrezorOutput map[string]string
@@ -231,6 +232,10 @@ func PrepareTrezorSign(config *conf.Config, tx *wire.MsgTx) (string, error) {
 	var trezorTx TrezorTx
 	client, err := ConnectRPC(config)
 	param := util.GetParamByName(config.ChainName)
+	onBCH := false
+	if strings.HasPrefix(strings.ToLower(config.ChainName), "bch") {
+		onBCH = true
+	}
 
 	if err != nil {
 		return "", err
@@ -265,6 +270,7 @@ func PrepareTrezorSign(config *conf.Config, tx *wire.MsgTx) (string, error) {
 		trezorTx.Inputs[i].AddressN[4] = uint32(addrId)
 		trezorTx.Inputs[i].PrevIndex = int(prevIndex)
 		trezorTx.Inputs[i].PrevHash = prevHash
+		trezorTx.Inputs[i].Amount = strconv.FormatInt(out.Amount, 10)
 
 		trezorTx.RefTxs[i].Hash = prevHash
 		prevTx, err := client.GetRawTransaction(&tx.TxIn[i].PreviousOutPoint.Hash)
@@ -302,7 +308,11 @@ func PrepareTrezorSign(config *conf.Config, tx *wire.MsgTx) (string, error) {
 			trezorTx.Outputs[i]["script_type"] = "PAYTOOPRETURN"
 			trezorTx.Outputs[i]["op_return_data"] = hex.EncodeToString(tx.TxOut[i].PkScript[2:])
 		} else {
-			trezorTx.Outputs[i]["address"] = addrSet[0].EncodeAddress()
+			if onBCH {
+				trezorTx.Outputs[i]["address"], _ = util.ConvertLegacyToCashAddr(addrSet[0].EncodeAddress(), param)
+			} else {
+				trezorTx.Outputs[i]["address"] = addrSet[0].EncodeAddress()
+			}
 			trezorTx.Outputs[i]["amount"] = strconv.FormatInt(tx.TxOut[i].Value, 10)
 			trezorTx.Outputs[i]["script_type"] = "PAYTOADDRESS"
 		}
