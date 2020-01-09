@@ -134,7 +134,6 @@ func BuildSignedMsgTx(chain, xpriv string, inputs []TxInput, outputs []TxOut) (*
 }
 
 func SignMsgTx(chain, xpriv string, tx *wire.MsgTx) (*wire.MsgTx, error) {
-	//tx.Version = 2
 	signedTx := tx.Copy()
 	param := util.GetParamByName(chain)
 	onBCH := false
@@ -181,10 +180,10 @@ func SignMsgTx(chain, xpriv string, tx *wire.MsgTx) (*wire.MsgTx, error) {
 		//log.Println("privkey:", hex.EncodeToString(privKey.ToECDSA().D.Bytes()))
 		if onBCH {
 			signedTx.TxIn[i].SignatureScript, err = bchtxscript.SignatureScript(
-				&bchTx,   // The tx to be signed.
-				i,        // The index of the txin the signature is for.
-				10000000, //TODO: need to get amount of the input
-				script,   // The other half of the script from the PubKeyHash.
+				&bchTx,     // The tx to be signed.
+				i,          // The index of the txin the signature is for.
+				out.Amount, //amount of the input
+				script,     // The other half of the script from the PubKeyHash.
 				bchtxscript.SigHashForkID|bchtxscript.SigHashAll, // The signature flags that indicate what the sig covers.
 				(*bchec.PrivateKey)(privKey),                     // The key to generate the signature with.
 				true)                                             // The compress sig flag. This saves space on the blockchain.
@@ -205,11 +204,6 @@ func SignMsgTx(chain, xpriv string, tx *wire.MsgTx) (*wire.MsgTx, error) {
 			bchTx.TxIn[i].SignatureScript = make([]byte, len(signedTx.TxIn[i].SignatureScript))
 			copy(bchTx.TxIn[i].SignatureScript, signedTx.TxIn[i].SignatureScript)
 		}
-	}
-	if onBCH {
-		buf := bytes.NewBuffer(make([]byte, 0, bchTx.SerializeSize()))
-		bchTx.Serialize(buf)
-		log.Println(hex.EncodeToString(buf.Bytes()))
 	}
 
 	return signedTx, nil
