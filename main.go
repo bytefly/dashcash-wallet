@@ -125,6 +125,7 @@ func main() {
 	r.HandleFunc("/sendOmniCoin", SendOmniCoinHandler(config))
 	r.HandleFunc("/prepareOmniTrezorSign", PrepareOmniTrezorSignHandler(config))
 	r.HandleFunc("/getOmniBalance", GetOmniBalanceHandler(config))
+	r.HandleFunc("/checkAddr", CheckAddrHandler(config))
 
 	r.HandleFunc("/dumpUtxo", DumpUtxoHandler(config))
 

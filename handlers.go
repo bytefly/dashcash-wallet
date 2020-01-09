@@ -560,3 +560,20 @@ func GetOmniBalanceHandler(config *conf.Config) func(w http.ResponseWriter, r *h
 		Respond(w, 0, map[string]string{"balance": util.LeftShift(big.NewInt(balance-pendingAmount).String(), 8)})
 	}
 }
+
+func CheckAddrHandler(config *conf.Config) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		addr := r.URL.Query().Get("address")
+		if addr == "" {
+			RespondWithError(w, 400, "missing address")
+			return
+		}
+
+		ok := util.VerifyAddress(config.ChainName, addr)
+		if ok {
+			Respond(w, 0, map[string]string{"result": "valid"})
+		} else {
+			Respond(w, 0, map[string]string{"result": "invalid"})
+		}
+	}
+}
