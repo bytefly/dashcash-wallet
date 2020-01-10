@@ -152,7 +152,6 @@ func main() {
 	}
 	go server.Serve(listener)
 
-	zmqInit(config.ZmqURL)
 	//launch the signal once avoiding waiting for a long time
 	GetNewerBlock(config, ch2)
 
@@ -175,14 +174,8 @@ func main() {
 		if stop == 1 {
 			break
 		}
-
-		err = zmqProcess(config, config.ChainName, ch2)
-		if err != nil {
-			zmqRestart(config.ZmqURL)
-		}
 	}
 
-	zmqClose(config.ZmqURL)
 	server.Close()
 	closeDb()
 	conf.SaveConfiguration(config, fConfigFile)
