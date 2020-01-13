@@ -217,7 +217,7 @@ func ParseTransaction(client *rpcclient.Client, msgtx *wire.MsgTx, chainName str
 			} else {
 				//only support USDT@btc
 				omniTemplate := usdt.GetOmniUsdtScript(0)
-				if bytes.Compare(omniScript[2:14], omniTemplate[0:12]) != 0 {
+				if bytes.Compare(omniScript[0:14], omniTemplate[0:14]) != 0 {
 					log.Println("not a usdt send tx, ignore it")
 				} else {
 					omniValue := binary.BigEndian.Uint64(omniScript[14:])
