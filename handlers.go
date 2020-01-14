@@ -109,10 +109,14 @@ func SendCoinHandler(config *conf.Config) func(w http.ResponseWriter, r *http.Re
 
 		hash, err = SendTransaction(config, signedTx)
 		if err != nil {
+			log.Println("send tx err:", err)
 			RespondWithError(w, 500, fmt.Sprintf("send tx err:%v", err))
 			return
 		}
 		log.Println("new generated tx:", hash)
+		if err = ParseMempoolTransaction(config, signedTx, config.ChainName); err != nil {
+			log.Println("parse signed tx error:", err)
+		}
 		Respond(w, 0, map[string]string{"txhash": hash})
 	}
 }
@@ -288,6 +292,9 @@ func SendSignedTxHandler(config *conf.Config) func(w http.ResponseWriter, r *htt
 			return
 		}
 		log.Println("send signed tx ok:", hash)
+		if err = ParseMempoolTransaction(config, &tx, config.ChainName); err != nil {
+			log.Println("parse signed tx error:", err)
+		}
 
 		Respond(w, 0, map[string]string{"hash": hash})
 	}
