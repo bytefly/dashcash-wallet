@@ -113,9 +113,6 @@ var BCHTestNetParams = chaincfg.Params{
 var BSVMainNetParams = chaincfg.Params{
 	Name: "bsv",
 
-	// The prefix for the cashaddress
-	Bech32HRPSegwit: "bitcoincash", // always bitcoincash for mainnet, <CashAddressPrefix>
-
 	// Address encoding magics
 	PubKeyHashAddrID: 0x00, // starts with 1
 	ScriptHashAddrID: 0x05, // starts with 3
@@ -130,6 +127,23 @@ var BSVMainNetParams = chaincfg.Params{
 	HDCoinType: 236,
 }
 
+var BSVTestNetParams = chaincfg.Params{
+	Name: "bsvtest",
+
+	// Address encoding magics
+	PubKeyHashAddrID: 0x6f, // starts with m or n
+	ScriptHashAddrID: 0xc4, // starts with 2
+	PrivateKeyID:     0xef, // starts with 9 (uncompressed) or c (compressed)
+
+	// BIP32 hierarchical deterministic extended key magics
+	HDPrivateKeyID: [4]byte{0x04, 0x35, 0x83, 0x94}, // starts with tprv
+	HDPublicKeyID:  [4]byte{0x04, 0x35, 0x87, 0xcf}, // starts with tpub
+
+	// BIP44 coin type used in the hierarchical deterministic path for
+	// address generation.
+	HDCoinType: 1,
+}
+
 func GetParamByName(name string) *chaincfg.Params {
 	if chainParams == nil {
 		chainParams = make(map[string]*chaincfg.Params)
@@ -139,6 +153,7 @@ func GetParamByName(name string) *chaincfg.Params {
 		chainParams["bch"] = &BCHMainNetParams
 		chainParams["bchtest"] = &BCHTestNetParams
 		chainParams["bsv"] = &BSVMainNetParams
+		chainParams["bsvtest"] = &BSVTestNetParams
 	}
 
 	param, ok := chainParams[strings.ToLower(name)]

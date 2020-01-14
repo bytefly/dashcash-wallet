@@ -5,6 +5,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/bitcoinsv/bsvd/bsvec"
+	bsvtxscript "github.com/bitcoinsv/bsvd/txscript"
+	bsvwire "github.com/bitcoinsv/bsvd/wire"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
@@ -138,13 +141,25 @@ func SignMsgTx(chain, xpriv string, tx *wire.MsgTx) (*wire.MsgTx, error) {
 	signedTx := tx.Copy()
 	param := util.GetParamByName(chain)
 	onBCH := false
+	onBSV := false
 	var bchTx bchwire.MsgTx
+	var bsvTx bsvwire.MsgTx
 	if strings.HasPrefix(strings.ToLower(chain), "bch") {
 		onBCH = true
+	}
+	if strings.HasPrefix(strings.ToLower(chain), "bsv") {
+		onBSV = true
+	}
+	if onBCH || onBSV {
 		buf := bytes.NewBuffer(make([]byte, 0, tx.SerializeSizeStripped()))
 		_ = tx.SerializeNoWitness(buf)
 		tx.SerializeNoWitness(buf)
-		bchTx.Deserialize(buf)
+		if onBCH {
+			bchTx.Deserialize(buf)
+		}
+		if onBSV {
+			bsvTx.Deserialize(buf)
+		}
 	}
 
 	for i := 0; i < len(signedTx.TxIn); i++ {
@@ -188,6 +203,15 @@ func SignMsgTx(chain, xpriv string, tx *wire.MsgTx) (*wire.MsgTx, error) {
 				bchtxscript.SigHashForkID|bchtxscript.SigHashAll, // The signature flags that indicate what the sig covers.
 				(*bchec.PrivateKey)(privKey),                     // The key to generate the signature with.
 				true)                                             // The compress sig flag. This saves space on the blockchain.
+		} else if onBSV {
+			signedTx.TxIn[i].SignatureScript, err = bsvtxscript.SignatureScript(
+				&bsvTx,     // The tx to be signed.
+				i,          // The index of the txin the signature is for.
+				out.Amount, //amount of the input
+				script,     // The other half of the script from the PubKeyHash.
+				bsvtxscript.SigHashForkID|bsvtxscript.SigHashAll, // The signature flags that indicate what the sig covers.
+				(*bsvec.PrivateKey)(privKey),                     // The key to generate the signature with.
+				true)                                             // The compress sig flag. This saves space on the blockchain.
 		} else {
 			signedTx.TxIn[i].SignatureScript, err = txscript.SignatureScript(
 				signedTx,            // The tx to be signed.
@@ -204,6 +228,10 @@ func SignMsgTx(chain, xpriv string, tx *wire.MsgTx) (*wire.MsgTx, error) {
 		if onBCH {
 			bchTx.TxIn[i].SignatureScript = make([]byte, len(signedTx.TxIn[i].SignatureScript))
 			copy(bchTx.TxIn[i].SignatureScript, signedTx.TxIn[i].SignatureScript)
+		}
+		if onBSV {
+			bsvTx.TxIn[i].SignatureScript = make([]byte, len(signedTx.TxIn[i].SignatureScript))
+			copy(bsvTx.TxIn[i].SignatureScript, signedTx.TxIn[i].SignatureScript)
 		}
 	}
 

@@ -231,10 +231,18 @@ func VerifyAddress(chain, address string) bool {
 	}
 
 	if false == addr.IsForNet(param) {
-		log.Println("address not from mainnet")
+		log.Println("address not from the net")
 		return false
 	}
 
+	if strings.HasPrefix(strings.ToLower(chain), "bsv") {
+		switch addr.(type) {
+		case *btcutil.AddressPubKeyHash:
+			return true
+		default:
+			return false
+		}
+	}
 	return true
 }
 
