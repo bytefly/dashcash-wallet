@@ -112,6 +112,7 @@ func SendCoinHandler(config *conf.Config) func(w http.ResponseWriter, r *http.Re
 			RespondWithError(w, 500, fmt.Sprintf("send tx err:%v", err))
 			return
 		}
+		log.Println("new generated tx:", hash)
 		Respond(w, 0, map[string]string{"txhash": hash})
 	}
 }
