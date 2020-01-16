@@ -163,6 +163,10 @@ func PrepareTrezorSignHandler(config *conf.Config) func(w http.ResponseWriter, r
 				RespondWithError(w, 500, fmt.Sprintf("get change addr err:%v", err))
 				return
 			}
+			if strings.HasPrefix(strings.ToLower(config.ChainName), "bch") {
+				to, _ = util.ConvertLegacyToCashAddr(to, param)
+				to = to[len(param.Bech32HRPSegwit)+1:]
+			}
 		}
 
 		changeAddress, err := util.GetNewChangeAddr(config, config.InIndex)
