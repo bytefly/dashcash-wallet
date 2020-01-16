@@ -5,6 +5,7 @@ import (
 	"github.com/bytefly/dashcash-wallet/util"
 	"log"
 	"math/big"
+	"strings"
 )
 
 type WsEvent struct {
@@ -188,6 +189,7 @@ func Notifier(config *conf.Config, ch <-chan NotifyMessage) {
 		amount = util.LeftShift(amountString, 8)
 		fee = util.LeftShift(message.Fee.String(), 8)
 
+		symbol = strings.ReplaceAll(symbol, "TEST", "")
 		if symbol == "USDT" {
 			status, err := GetOmniTxStatus(config, message.TxHash)
 			if err != nil {
