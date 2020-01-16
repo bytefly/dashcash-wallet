@@ -124,7 +124,7 @@ var BSVMainNetParams = chaincfg.Params{
 
 	// BIP44 coin type used in the hierarchical deterministic path for
 	// address generation.
-	HDCoinType: 236,
+	HDCoinType: 0,
 }
 
 var BSVTestNetParams = chaincfg.Params{
