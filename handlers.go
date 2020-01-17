@@ -425,6 +425,10 @@ func SendOmniCoinHandler(config *conf.Config) func(w http.ResponseWriter, r *htt
 			RespondWithError(w, 500, fmt.Sprintf("send tx err:%v", err))
 			return
 		}
+		log.Println("send omni tx ok:", hash)
+		if err = ParseMempoolTransaction(config, signedTx, config.ChainName); err != nil {
+			log.Println("parse omni tx error:", err)
+		}
 		Respond(w, 0, map[string]string{"txhash": hash})
 	}
 }
