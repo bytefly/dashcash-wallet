@@ -82,7 +82,7 @@ func GetNewerBlock(config *conf.Config, ch chan<- ObjMessage) error {
 	}
 
 	bgInt := new(big.Int)
-	bgInt.SetInt64(int64(info.Headers))
+	bgInt.SetInt64(int64(info.Blocks))
 	ch <- ObjMessage{TYPE_BLOCK_HASH, info.BestBlockHash, bgInt}
 	return nil
 }
